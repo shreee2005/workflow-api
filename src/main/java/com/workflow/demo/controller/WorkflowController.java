@@ -1,4 +1,4 @@
-package controller;
+package com.workflow.demo.controller;
 
 import org.springframework.web.bind.annotation.*;
 
