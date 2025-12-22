@@ -30,26 +30,30 @@ public class TeamService {
     }
 
     @Transactional
-    public Team createTeam(String name, UUID ownerId) {
-        Team t = Team.builder()
+    public Team createTeam(String name, UUID ownerId, String ownerEmail) {
+
+        Team team = Team.builder()
                 .name(name)
                 .ownerId(ownerId)
                 .createdAt(OffsetDateTime.now())
                 .build();
-        Team saved = teamRepository.save(t);
 
-        // make owner an accepted member
+        Team saved = teamRepository.save(team);
+
         TeamMember ownerMember = TeamMember.builder()
                 .team(saved)
-                .email(resolveEmailForUserId(ownerId))
                 .userId(ownerId)
+                .email(ownerEmail)
                 .status(Status.ACCEPTED)
                 .invitedAt(OffsetDateTime.now())
                 .acceptedAt(OffsetDateTime.now())
                 .build();
+
         teamMemberRepository.save(ownerMember);
+
         return saved;
     }
+
 
     @Transactional
     public TeamMember inviteMember(UUID teamId, String email) {
@@ -113,7 +117,5 @@ public class TeamService {
         return teamMemberRepository.findByTeamId(teamId);
     }
 
-    private String resolveEmailForUserId(UUID userId) {
-        return userRepository.findById(userId).map(User::getEmail).orElse("unknown");
-    }
+
 }
