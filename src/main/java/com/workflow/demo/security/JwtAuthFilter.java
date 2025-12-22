@@ -1,18 +1,15 @@
 package com.workflow.demo.security;
 
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
 import java.util.UUID;
 
 @Component
@@ -25,50 +22,34 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws jakarta.servlet.ServletException, java.io.IOException {
 
-        return path.startsWith("/oauth2/")
-                || path.startsWith("/login/")
-                || path.startsWith("/actuator/")
-                || path.startsWith("/error");
-    }
+        String header = request.getHeader("Authorization");
 
-    @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
-            throws ServletException, IOException {
+        if (header != null && header.startsWith("Bearer ")) {
+            try {
+                String token = header.substring(7);
+                Claims claims = jwtUtil.validateAndGetClaims(token);
 
-        String authHeader = request.getHeader("Authorization");
+                UUID userId = UUID.fromString(claims.getSubject());
+                String email = claims.get("email", String.class);
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+                UsernamePasswordAuthenticationToken auth =
+                        new UsernamePasswordAuthenticationToken(
+                                userId,
+                                email,              // store email in credentials
+                                Collections.emptyList()
+                        );
 
-        String token = authHeader.substring(7);
+                SecurityContextHolder.getContext().setAuthentication(auth);
 
-        try {
-            UUID userId = jwtUtil.validateAndExtractUserId(token);
-
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            userId.toString(),   // 🔥 principal = UUID
-                            null,
-                            List.of()
-                    );
-
-            authentication.setDetails(
-                    new WebAuthenticationDetailsSource().buildDetails(request)
-            );
-
-            // 🔥 HARD REPLACE (critical fix)
-            SecurityContextHolder.clearContext();
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        } catch (Exception ex) {
-            SecurityContextHolder.clearContext();
+            } catch (Exception ex) {
+                SecurityContextHolder.clearContext();
+            }
         }
 
         filterChain.doFilter(request, response);

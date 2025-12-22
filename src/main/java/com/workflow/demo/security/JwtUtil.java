@@ -18,26 +18,18 @@ public class JwtUtil {
     private final Key key;
 
     public JwtUtil() {
-        // Prefer environment variable JWT_SECRET. Must be at least 32 bytes for HS256.
         String secret = System.getenv("JWT_SECRET");
 
         if (secret == null || secret.isBlank()) {
-            // fallback dev secret (make sure to override in prod / CI)
             secret = "dev-secret-please-change-to-a-long-random-value-303957762";
         }
 
         if (secret.length() < 32) {
-            // pad to 32 bytes deterministically so key creation never fails in dev
             secret = (secret + "00000000000000000000000000000000").substring(0, 32);
         }
 
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
 
-        // DEBUG (optional): uncomment if you still want to see what is used at runtime
-        // System.out.println("=== JWT_SECRET AT RUNTIME ===");
-        // System.out.println("length=" + secret.length());
-        // System.out.println("value=[" + secret + "]");
-        // System.out.println("================================");
     }
 
     public String generateToken(String userId, String email) {
@@ -79,5 +71,13 @@ public class JwtUtil {
                 .setSigningKey(key)
                 .build()
                 .parseClaimsJws(token);
+    }
+
+    public Claims validateAndGetClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 }

@@ -30,14 +30,27 @@ public class TeamController {
     /** Create a team. Body: { "name": "Acme Team" } -> returns 201 with created resource and id */
     @PostMapping
     public ResponseEntity<?> createTeam(@RequestBody Map<String, String> body) {
+
         String name = body.get("name");
         if (name == null || name.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "name_required"));
         }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UUID ownerId = currentUserId();
-        Team t = teamService.createTeam(name.trim(), ownerId);
-        return ResponseEntity.created(URI.create("/api/teams/" + t.getId())).body(Map.of("teamId", t.getId()));
+
+        String ownerEmail = (String) auth.getCredentials();
+        if (ownerEmail == null || ownerEmail.isBlank()) {
+            return ResponseEntity.status(500).body(Map.of("error", "email_missing_in_token"));
+        }
+
+        Team team = teamService.createTeam(name.trim(), ownerId, ownerEmail);
+
+        return ResponseEntity
+                .created(URI.create("/api/teams/" + team.getId()))
+                .body(Map.of("teamId", team.getId()));
     }
+
 
     @GetMapping
     public ResponseEntity<List<Team>> listMyTeams() {
@@ -69,9 +82,18 @@ public class TeamController {
 
     private UUID currentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) throw new IllegalStateException("not authenticated");
-        String email = auth.getName();
-        Optional<User> u = userRepository.findByEmail(email);
-        return u.map(User::getId).orElseThrow(() -> new IllegalStateException("authenticated user not in DB"));
+
+        if (auth == null || auth.getPrincipal() == null) {
+            throw new IllegalStateException("unauthenticated request");
+        }
+
+        if (auth.getPrincipal() instanceof UUID userId) {
+            return userId;
+        }
+
+        throw new IllegalStateException(
+                "unexpected principal type: " + auth.getPrincipal().getClass().getName()
+        );
     }
+
 }
