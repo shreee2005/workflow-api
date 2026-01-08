@@ -1,6 +1,8 @@
 package com.workflow.demo.entity;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.UUID;
 import java.time.OffsetDateTime;
@@ -16,6 +18,7 @@ public class IncomingEvent {
     private UUID workflowId;
 
     @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String payload;
 
     @Column(name = "idempotency_key")
