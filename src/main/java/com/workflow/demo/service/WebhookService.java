@@ -1,17 +1,22 @@
+// WebhookService.java
 package com.workflow.demo.service;
+
 import com.workflow.demo.entity.IncomingEvent;
 import com.workflow.demo.repository.IncomingEventRepository;
 import org.springframework.stereotype.Service;
+
 import java.util.UUID;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
 @Service
 public class WebhookService {
+
     private final IncomingEventRepository incomingEventRepository;
     private final JobPublisher jobPublisher;
 
-    public WebhookService(IncomingEventRepository incomingEventRepository, JobPublisher jobPublisher) {
+    public WebhookService(IncomingEventRepository incomingEventRepository,
+                          JobPublisher jobPublisher) {
         this.incomingEventRepository = incomingEventRepository;
         this.jobPublisher = jobPublisher;
     }
@@ -24,15 +29,15 @@ public class WebhookService {
 
         IncomingEvent ev = new IncomingEvent();
         ev.setWorkflowId(workflowId);
-        ev.setPayload(toJson(body));         // store JSON string in DB
+        ev.setPayload(toJson(body)); // store JSON string in DB
         ev.setIdempotencyKey(idempotencyKey);
         ev.setReceivedAt(OffsetDateTime.now());
+
         incomingEventRepository.save(ev);
 
-        // publish a job message for worker (JSON, not Java serialization)
-        jobPublisher.publishRun(ev.getId(), workflowId, body.toString());
+        // publish a job message for worker
+        jobPublisher.publishRun(ev.getId(), workflowId, toJson(body));
     }
-
 
     private String toJson(Object o) {
         try {
@@ -42,4 +47,3 @@ public class WebhookService {
         }
     }
 }
-

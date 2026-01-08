@@ -34,6 +34,8 @@ public class OAuth2SecurityConfig {
                         // allow health/debug/open endpoints
                         .requestMatchers("/actuator/**", "/api/debug/**", "/error").permitAll()
                         // OAuth2 entry points
+                        .requestMatchers("/api/workflows/**").permitAll()
+                        .requestMatchers("/hooks/**").permitAll()
                         .requestMatchers("/oauth2/**", "/login/**").permitAll()
                         // everything else under /api/ requires authentication
                         .requestMatchers("/api/**").authenticated()
