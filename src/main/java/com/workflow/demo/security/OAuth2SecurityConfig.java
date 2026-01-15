@@ -25,18 +25,20 @@ public class OAuth2SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-
         http
                 .csrf(csrf -> csrf.disable())
+                .cors(cors -> {}) // <--- enable CORS support
+
                 .sessionManagement(sm ->
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // allow health/debug/open endpoints
                         .requestMatchers("/actuator/**", "/api/debug/**", "/error").permitAll()
                         // OAuth2 entry points
+                        .requestMatchers("/oauth2/**", "/login/**").permitAll()
+                        // allow your UI calls to create/list workflows WITHOUT auth for now:
                         .requestMatchers("/api/workflows/**").permitAll()
                         .requestMatchers("/hooks/**").permitAll()
-                        .requestMatchers("/oauth2/**", "/login/**").permitAll()
                         // everything else under /api/ requires authentication
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
@@ -52,4 +54,5 @@ public class OAuth2SecurityConfig {
 
         return http.build();
     }
+
 }
