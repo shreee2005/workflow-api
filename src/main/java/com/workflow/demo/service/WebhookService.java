@@ -2,7 +2,9 @@
 package com.workflow.demo.service;
 
 import com.workflow.demo.entity.IncomingEvent;
+import com.workflow.demo.entity.WorkflowRun;
 import com.workflow.demo.repository.IncomingEventRepository;
+import com.workflow.demo.repository.WorkflowRunRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -14,11 +16,12 @@ public class WebhookService {
 
     private final IncomingEventRepository incomingEventRepository;
     private final JobPublisher jobPublisher;
-
+    private final WorkflowRunService workflowRunService;
     public WebhookService(IncomingEventRepository incomingEventRepository,
-                          JobPublisher jobPublisher) {
+                          JobPublisher jobPublisher, WorkflowRunService workflowRunService) {
         this.incomingEventRepository = incomingEventRepository;
         this.jobPublisher = jobPublisher;
+        this.workflowRunService = workflowRunService;
     }
 
     public void acceptWebhook(UUID workflowId, Map<String, Object> body, String idempotencyKey) {
@@ -34,9 +37,9 @@ public class WebhookService {
         ev.setReceivedAt(OffsetDateTime.now());
 
         incomingEventRepository.save(ev);
-
+        WorkflowRun run = workflowRunService.createQueuedRun(workflowId, ev.getId());
         // publish a job message for worker
-        jobPublisher.publishRun(ev.getId(), workflowId, toJson(body));
+        jobPublisher.publishRun(run.getId(), ev.getId(), workflowId, body.toString());
     }
 
     private String toJson(Object o) {

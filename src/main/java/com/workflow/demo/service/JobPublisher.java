@@ -17,7 +17,7 @@ public class JobPublisher {
         this.rabbitTemplate = rabbitTemplate;
     }
 
-    public void publishRun(UUID incomingEventId, UUID workflowId, String payloadJson) {
+    public void publishRun(UUID incomingEventId, UUID workflowId, UUID id, String payloadJson) {
         Map<String, Object> msg = new HashMap<>();
         msg.put("incomingEventId", incomingEventId.toString());
         msg.put("workflowId", workflowId.toString());
