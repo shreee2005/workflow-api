@@ -32,7 +32,7 @@ public class WorkflowController {
 
     @GetMapping
     public List<WorkflowDto> listWorkflows() {
-        return workflowRepository.findAll()
+        return workflowRepository.findAllByOrderByCreatedAtAsc()
                 .stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
