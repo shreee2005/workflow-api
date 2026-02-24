@@ -32,24 +32,28 @@ public class OAuth2SecurityConfig {
                 .sessionManagement(sm ->
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // allow health/debug/open endpoints
+                        // Public endpoints
                         .requestMatchers("/actuator/**", "/api/debug/**", "/error").permitAll()
-                        // OAuth2 entry points
                         .requestMatchers("/oauth2/**", "/login/**").permitAll()
-                        // allow your UI calls to create/list workflows WITHOUT auth for now:
+
+                        // VERY IMPORTANT: webhook must come before /api/**
+                        .requestMatchers("/api/webhooks/**").permitAll()
+
                         .requestMatchers("/api/workflows/**").permitAll()
                         .requestMatchers("/hooks/**").permitAll()
-                        // everything else under /api/ requires authentication
+
+                        // All other API endpoints require auth
                         .requestMatchers("/api/**").authenticated()
+
                         .anyRequest().permitAll()
                 )
+
                 .oauth2Login(oauth -> oauth
                         .successHandler(oauth2LoginSuccessHandler)
                 );
 
-        // JWT for bearer tokens
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-        // API key for internal worker calls
+
         http.addFilterBefore(apiKeyAuthFilter, JwtAuthFilter.class);
 
         return http.build();

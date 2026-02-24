@@ -21,38 +21,12 @@ public class WorkflowRunService {
         WorkflowRun run = new WorkflowRun();
         run.setWorkflowId(workflowId);
         run.setIncomingEventId(incomingEventId);
+        run.setAttempt(0);
+        run.setMaxAttempts(3);
         run.setStatus(WorkflowRun.Status.QUEUED);
         run.setStartedAt(null);
         run.setFinishedAt(null);
         run.setErrorMessage(null);
-        return workflowRunRepository.save(run);
-    }
-
-    public WorkflowRun markRunning(UUID runId) {
-        WorkflowRun run = workflowRunRepository.findById(runId).orElseThrow();
-        run.setStatus(WorkflowRun.Status.RUNNING);
-        run.setStartedAt(OffsetDateTime.now());
-        return workflowRunRepository.save(run);
-    }
-
-    public WorkflowRun markSucceeded(UUID runId) {
-        WorkflowRun run = workflowRunRepository.findById(runId).orElseThrow();
-        run.setStatus(WorkflowRun.Status.SUCCEEDED);
-        if (run.getStartedAt() == null) {
-            run.setStartedAt(OffsetDateTime.now());
-        }
-        run.setFinishedAt(OffsetDateTime.now());
-        return workflowRunRepository.save(run);
-    }
-
-    public WorkflowRun markFailed(UUID runId, String errorMessage) {
-        WorkflowRun run = workflowRunRepository.findById(runId).orElseThrow();
-        run.setStatus(WorkflowRun.Status.FAILED);
-        if (run.getStartedAt() == null) {
-            run.setStartedAt(OffsetDateTime.now());
-        }
-        run.setFinishedAt(OffsetDateTime.now());
-        run.setErrorMessage(errorMessage);
         return workflowRunRepository.save(run);
     }
 
@@ -62,5 +36,15 @@ public class WorkflowRunService {
 
     public WorkflowRun getRun(UUID runId) {
         return workflowRunRepository.findById(runId).orElseThrow();
+    }
+
+    // Optional: helper to update timestamps if you show them in API
+    public WorkflowRun touchStarted(UUID runId) {
+        WorkflowRun run = getRun(runId);
+        if (run.getStartedAt() == null) {
+            run.setStartedAt(OffsetDateTime.now());
+            return workflowRunRepository.save(run);
+        }
+        return run;
     }
 }
