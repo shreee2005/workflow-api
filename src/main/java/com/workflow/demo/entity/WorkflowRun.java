@@ -40,4 +40,28 @@ public class WorkflowRun {
         SUCCEEDED,
         FAILED
     }
+
+    @Column(nullable = false)
+    private int attempt = 0;
+
+    @Column(nullable = false)
+    private int maxAttempts = 3;
+
+    public void transitionTo(Status next) {
+        if (!isValidTransition(this.status, next)) {
+            throw new IllegalStateException(
+                    "Invalid state transition: " + this.status + " → " + next
+            );
+        }
+        this.status = next;
+    }
+
+    private boolean isValidTransition(Status from, Status to) {
+        return switch (from) {
+            case QUEUED -> to == Status.RUNNING;
+            case RUNNING -> to == Status.SUCCEEDED || to == Status.FAILED;
+            case FAILED, SUCCEEDED -> false;
+        };
+    }
+
 }
