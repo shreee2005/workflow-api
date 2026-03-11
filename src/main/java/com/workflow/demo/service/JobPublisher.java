@@ -23,6 +23,7 @@ public class JobPublisher {
         msg.setPayload(payloadJson);
         msg.setAttempt(0);
 
+        System.out.println("Publishing to RabbitMQ: runId=" + runId);
         rabbitTemplate.convertAndSend("workflow.tasks", msg);
     }
 }
