@@ -19,8 +19,13 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     private final String internalApiKey;
 
     public ApiKeyAuthFilter() {
-        // Optional: INTERNAL_API_KEY for worker-to-API calls; if missing, filter does nothing.
         this.internalApiKey = System.getenv("INTERNAL_API_KEY");
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return path.startsWith("/actuator/");
     }
 
     @Override
@@ -28,6 +33,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain)
             throws ServletException, IOException {
+
+        // For actuator paths, bypass filter logic fully
+        if (shouldNotFilter(request)) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         if (internalApiKey != null && !internalApiKey.isBlank()) {
             String headerKey = request.getHeader("X-Internal-API-Key");

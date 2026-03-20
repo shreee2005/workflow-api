@@ -27,36 +27,30 @@ public class OAuth2SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {}) // <--- enable CORS support
-
-                .sessionManagement(sm ->
-                        sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .cors(cors -> {})
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
+                        .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers("/actuator/**", "/api/debug/**", "/error").permitAll()
                         .requestMatchers("/oauth2/**", "/login/**").permitAll()
 
-                        // VERY IMPORTANT: webhook must come before /api/**
+                        // Existing webhook/public routes
                         .requestMatchers("/api/webhooks/**").permitAll()
-
                         .requestMatchers("/api/workflows/**").permitAll()
                         .requestMatchers("/hooks/**").permitAll()
 
-                        // All other API endpoints require auth
+                        // Protected API routes
                         .requestMatchers("/api/**").authenticated()
 
                         .anyRequest().permitAll()
                 )
-
-                .oauth2Login(oauth -> oauth
-                        .successHandler(oauth2LoginSuccessHandler)
-                );
+                .oauth2Login(oauth -> oauth.successHandler(oauth2LoginSuccessHandler))
+                .httpBasic(Customizer.withDefaults()); // harmless + helps actuator tooling compatibility
 
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-
         http.addFilterBefore(apiKeyAuthFilter, JwtAuthFilter.class);
 
         return http.build();
     }
-
 }
