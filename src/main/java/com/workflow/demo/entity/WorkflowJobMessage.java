@@ -8,6 +8,7 @@ import java.util.UUID;
 public class WorkflowJobMessage {
     private UUID runId;
     private UUID workflowId;
+    private UUID workflowVersionId;
     private String payload;
     private int attempt;
 

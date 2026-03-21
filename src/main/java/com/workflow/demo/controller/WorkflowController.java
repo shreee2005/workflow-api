@@ -1,11 +1,14 @@
-// WorkflowController.java
 package com.workflow.demo.controller;
 
 import com.workflow.demo.dto.WorkflowDto;
 import com.workflow.demo.entity.Workflow;
+import com.workflow.demo.entity.WorkflowVersion;
 import com.workflow.demo.repository.WorkflowRepository;
+import com.workflow.demo.repository.WorkflowVersionRepository;
+import com.workflow.demo.service.WorkflowVersioningService;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -15,19 +18,40 @@ import java.util.stream.Collectors;
 public class WorkflowController {
 
     private final WorkflowRepository workflowRepository;
+    private final WorkflowVersioningService workflowVersioningService;
+    private final WorkflowVersionRepository workflowVersionRepository;
 
-    public WorkflowController(WorkflowRepository workflowRepository) {
+    public WorkflowController(
+            WorkflowRepository workflowRepository,
+            WorkflowVersioningService workflowVersioningService,
+            WorkflowVersionRepository workflowVersionRepository
+    ) {
         this.workflowRepository = workflowRepository;
+        this.workflowVersioningService = workflowVersioningService;
+        this.workflowVersionRepository = workflowVersionRepository;
     }
 
     @PostMapping
     public WorkflowDto createWorkflow(@RequestBody WorkflowDto dto) {
         Workflow wf = new Workflow();
         wf.setName(dto.getName());
-        wf.setSpec(dto.getSpec());
         wf.setActive(dto.isActive());
+        wf.setUpdatedAt(OffsetDateTime.now());
+
         Workflow saved = workflowRepository.save(wf);
-        return toDto(saved);
+
+        String note = (dto.getChangeNote() != null && !dto.getChangeNote().isBlank())
+                ? dto.getChangeNote()
+                : "Initial version";
+
+        WorkflowVersion v1 = workflowVersioningService.createNewVersion(
+                saved.getId(),
+                dto.getSpec(),
+                dto.getChangeNote() != null ? dto.getChangeNote() : "Initial version"
+        );
+
+        Workflow refreshed = workflowRepository.findById(saved.getId()).orElseThrow();
+        return toDtoWithVersion(refreshed, v1);
     }
 
     @GetMapping
@@ -46,16 +70,27 @@ public class WorkflowController {
     }
 
     @PutMapping("/{id}")
-    public WorkflowDto updateWorkflow(@PathVariable UUID id,
-                                      @RequestBody WorkflowDto dto) {
+    public WorkflowDto updateWorkflow(@PathVariable UUID id, @RequestBody WorkflowDto dto) {
         Workflow wf = workflowRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
         wf.setName(dto.getName());
-        wf.setSpec(dto.getSpec());
         wf.setActive(dto.isActive());
-        wf.setUpdatedAt(java.time.OffsetDateTime.now());
-        Workflow saved = workflowRepository.save(wf);
-        return toDto(saved);
+        wf.setUpdatedAt(OffsetDateTime.now());
+        workflowRepository.save(wf);
+
+        String note = (dto.getChangeNote() != null && !dto.getChangeNote().isBlank())
+                ? dto.getChangeNote()
+                : "Initial version";
+
+        WorkflowVersion newVersion = workflowVersioningService.createNewVersion(
+                wf.getId(),
+                dto.getSpec(),
+                dto.getChangeNote() != null ? dto.getChangeNote() : "Updated from API"
+        );
+
+        Workflow refreshed = workflowRepository.findById(wf.getId()).orElseThrow();
+        return toDtoWithVersion(refreshed, newVersion);
     }
 
     @PostMapping("/{id}/activate")
@@ -63,8 +98,9 @@ public class WorkflowController {
         Workflow wf = workflowRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
         wf.setActive(true);
-        wf.setUpdatedAt(java.time.OffsetDateTime.now());
-        return toDto(workflowRepository.save(wf));
+        wf.setUpdatedAt(OffsetDateTime.now());
+        Workflow saved = workflowRepository.save(wf);
+        return toDto(saved);
     }
 
     @PostMapping("/{id}/deactivate")
@@ -72,16 +108,42 @@ public class WorkflowController {
         Workflow wf = workflowRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
         wf.setActive(false);
-        wf.setUpdatedAt(java.time.OffsetDateTime.now());
-        return toDto(workflowRepository.save(wf));
+        wf.setUpdatedAt(OffsetDateTime.now());
+        Workflow saved = workflowRepository.save(wf);
+        return toDto(saved);
     }
 
     private WorkflowDto toDto(Workflow wf) {
         WorkflowDto dto = new WorkflowDto();
         dto.setId(wf.getId());
         dto.setName(wf.getName());
-        dto.setSpec(wf.getSpec());
         dto.setActive(wf.isActive());
+
+        if (wf.getActiveVersionId() != null) {
+            WorkflowVersion v = workflowVersionRepository.findById(wf.getActiveVersionId()).orElse(null);
+            if (v != null) {
+                dto.setActiveVersionId(v.getId());
+                dto.setActiveVersionNumber(v.getVersionNumber());
+                dto.setSpec(v.getSpec());
+                dto.setChangeNote(v.getChangeNote());
+                return dto;
+            }
+        }
+
+        // fallback for legacy data
+        dto.setSpec(wf.getSpec());
+        return dto;
+    }
+
+    private WorkflowDto toDtoWithVersion(Workflow wf, WorkflowVersion v) {
+        WorkflowDto dto = new WorkflowDto();
+        dto.setId(wf.getId());
+        dto.setName(wf.getName());
+        dto.setActive(wf.isActive());
+        dto.setSpec(v.getSpec());
+        dto.setActiveVersionId(v.getId());
+        dto.setActiveVersionNumber(v.getVersionNumber());
+        dto.setChangeNote(v.getChangeNote());
         return dto;
     }
 }

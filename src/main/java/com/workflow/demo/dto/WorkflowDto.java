@@ -11,4 +11,7 @@ public class WorkflowDto {
     private String name;
     private String spec;   // JSON string (could contain steps, trigger, etc.)
     private boolean active;
+    private UUID activeVersionId;
+    private Integer activeVersionNumber;
+    private String changeNote;
 }

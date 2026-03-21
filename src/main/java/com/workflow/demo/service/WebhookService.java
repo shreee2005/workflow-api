@@ -90,12 +90,17 @@ public class WebhookService {
                             List.of(WorkflowRun.Status.QUEUED, WorkflowRun.Status.RUNNING)
                     );
 
+            var workflowVersionId = workflow.getActiveVersionId();
+            if (workflowVersionId == null) {
+                throw new RuntimeException("WORKFLOW_VERSION_NOT_FOUND");
+            }
+
             WorkflowRun run = existing.orElseGet(() ->
-                    workflowRunService.createQueuedRun(workflowId, ev.getId())
+                    workflowRunService.createQueuedRun(workflowId, workflowVersionId, ev.getId())
             );
 
             // 7️⃣ Publish to worker
-            jobPublisher.publishRun(run.getId(), workflowId, ev.getPayload());
+            jobPublisher.publishRun(run.getId(), workflowId, workflowVersionId , ev.getPayload());
 
             // 8️⃣ Refresh queue backlog gauge
             workflowMetricsService.refreshQueueBacklog(workflowRunsQueueName);
