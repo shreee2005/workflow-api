@@ -24,6 +24,9 @@ public class Workflow {
     @JdbcTypeCode(SqlTypes.JSON)  // <-- ADD THIS LINE
     private String spec;
 
+    @Column(name = "active_version_id")
+    private UUID activeVersionId;
+
     private boolean active = false;
 
     private OffsetDateTime createdAt = OffsetDateTime.now();

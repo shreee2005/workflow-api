@@ -18,6 +18,9 @@ public class WorkflowRun {
     @Column(name = "workflow_id", nullable = false)
     private UUID workflowId;
 
+    @Column(name = "workflow_version_id", nullable = false)
+    private UUID workflowVersionId;
+
     @Column(name = "incoming_event_id")
     private UUID incomingEventId;
 
