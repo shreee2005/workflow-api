@@ -12,7 +12,8 @@ import java.util.UUID;
 public class WorkflowRun {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(nullable = false, updatable = false)
     private UUID id;
 
     @Column(name = "workflow_id", nullable = false)
@@ -41,6 +42,7 @@ public class WorkflowRun {
         QUEUED,
         RUNNING,
         SUCCEEDED,
+        WAITING,
         FAILED
     }
 
@@ -49,6 +51,9 @@ public class WorkflowRun {
 
     @Column(nullable = false)
     private int maxAttempts = 3;
+
+    @Column(name = "dead_lettered", nullable = false)
+    private boolean deadLettered = false;
 
     public void transitionTo(Status next) {
         if (!isValidTransition(this.status, next)) {
@@ -63,7 +68,9 @@ public class WorkflowRun {
         return switch (from) {
             case QUEUED -> to == Status.RUNNING;
             case RUNNING -> to == Status.SUCCEEDED || to == Status.FAILED;
+            case WAITING -> to == Status.RUNNING;
             case FAILED, SUCCEEDED -> false;
+
         };
     }
 

@@ -4,10 +4,12 @@ import com.workflow.demo.entity.WorkflowRunStep;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface WorkflowRunStepRepository
         extends JpaRepository<WorkflowRunStep, UUID> {
 
     List<WorkflowRunStep> findByRunIdOrderByStepIndexAsc(UUID runId);
+    Optional<WorkflowRunStep> findTopByRunIdAndStepIndexOrderByStartedAtDesc(UUID runId, int stepIndex);
 }
