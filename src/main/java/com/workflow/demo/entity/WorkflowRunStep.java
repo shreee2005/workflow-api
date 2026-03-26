@@ -40,6 +40,7 @@ public class WorkflowRunStep {
         PENDING,
         RUNNING,
         SUCCEEDED,
+        WAITING,
         FAILED
     }
 

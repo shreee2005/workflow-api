@@ -9,9 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface WorkflowRunRepository extends JpaRepository<WorkflowRun, UUID> {
-
     List<WorkflowRun> findByWorkflowIdOrderByStartedAtDesc(UUID workflowId);
     Optional<WorkflowRun> findFirstByWorkflowIdAndStatusInOrderByStartedAtDesc(
             UUID workflowId, Collection<WorkflowRun.Status> statuses);
-
 }

@@ -24,7 +24,10 @@ public class WorkflowRunService {
         run.setAttempt(0);
         run.setMaxAttempts(3);
         run.setStatus(WorkflowRun.Status.QUEUED);
-        return workflowRunRepository.save(run);
+
+        WorkflowRun saved = workflowRunRepository.saveAndFlush(run);
+        System.out.println("API created run: " + saved.getId());
+        return saved;
     }
 
     public List<WorkflowRun> listRunsForWorkflow(UUID workflowId) {
