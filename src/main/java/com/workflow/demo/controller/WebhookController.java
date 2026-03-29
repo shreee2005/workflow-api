@@ -50,9 +50,7 @@ public class WebhookController {
                         .body(Map.of("error", "Workflow is not active"));
             }
 
-            return ResponseEntity
-                    .internalServerError()
-                    .body(Map.of("error", "Internal error"));
+            return ResponseEntity.internalServerError().body(Map.of("error", ex.getMessage()));
         }
     }
 }
