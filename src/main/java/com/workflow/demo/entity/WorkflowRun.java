@@ -67,10 +67,9 @@ public class WorkflowRun {
     private boolean isValidTransition(Status from, Status to) {
         return switch (from) {
             case QUEUED -> to == Status.RUNNING;
-            case RUNNING -> to == Status.SUCCEEDED || to == Status.FAILED;
+            case RUNNING -> to == Status.WAITING || to == Status.SUCCEEDED || to == Status.FAILED;
             case WAITING -> to == Status.RUNNING;
             case FAILED, SUCCEEDED -> false;
-
         };
     }
 

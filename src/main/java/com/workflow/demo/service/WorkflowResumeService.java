@@ -40,7 +40,7 @@ public class WorkflowResumeService {
                 .orElseThrow(() -> new RuntimeException("WAIT_STATE_NOT_FOUND"));
 
         // idempotent: already resumed
-        if (!"WAITING".equals(wait.getStatus())) {
+        if (!"WAITING".equalsIgnoreCase(wait.getStatus())) {
             return;
         }
 
