@@ -31,9 +31,6 @@ public class Workflow {
     private OffsetDateTime createdAt = OffsetDateTime.now();
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 
-    @Column(name = "active_version_id")
-    private UUID activeVersionId;
-
     @Column(name = "active_version_number")
     private Integer activeVersionNumber;
 

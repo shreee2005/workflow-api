@@ -44,7 +44,6 @@ public class WorkflowRun {
         RUNNING,
         RETRYING,
         SUCCEEDED,
-        WAITING,
         FAILED
     }
 
@@ -58,11 +57,6 @@ public class WorkflowRun {
     @Column(name = "dead_lettered", nullable = false)
     private boolean deadLettered = false;
 
-<<<<<<< HEAD
-=======
-    @Column(name = "workflow_version_id", nullable = false)
-    private UUID workflowVersionId;
-
     public UUID getWorkflowVersionId() {
         return workflowVersionId;
     }
@@ -71,7 +65,6 @@ public class WorkflowRun {
         this.workflowVersionId = workflowVersionId;
     }
 
->>>>>>> 7379d8e (Non-retry and retry)
     public void transitionTo(Status next) {
         if (!isValidTransition(this.status, next)) {
             throw new IllegalStateException(
@@ -88,7 +81,6 @@ public class WorkflowRun {
             case RETRYING -> to == Status.RETRYING;
             case QUEUED -> to == Status.RUNNING;
             case RUNNING -> to == Status.WAITING || to == Status.SUCCEEDED || to == Status.FAILED;
-            case WAITING -> to == Status.RUNNING;
             case FAILED, SUCCEEDED -> false;
         };
     }

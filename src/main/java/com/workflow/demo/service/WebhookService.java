@@ -1,37 +1,36 @@
 package com.workflow.demo.service;
 import com.workflow.demo.entity.IncomingEvent;
 import com.workflow.demo.entity.WorkflowRun;
-<<<<<<< HEAD
 import com.workflow.demo.observability.WorkflowMetricsService;
 import com.workflow.demo.repository.IncomingEventRepository;
 import com.workflow.demo.repository.WorkflowRepository;
+import com.workflow.demo.repository.WorkflowRunRepository;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-=======
+
 import com.workflow.demo.entity.WorkflowVersion;
-import com.workflow.demo.repository.IncomingEventRepository;
-import com.workflow.demo.repository.WorkflowRepository;
-import com.workflow.demo.repository.WorkflowRunRepository;
+
 import com.workflow.demo.repository.WorkflowVersionRepository;
->>>>>>> 7379d8e (Non-retry and retry)
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
 public class WebhookService {
-<<<<<<< HEAD
+
 
     private static final Logger log = LoggerFactory.getLogger(WebhookService.class);
 
-=======
     private final WorkflowVersionRepository workflowVersionRepository;
->>>>>>> 7379d8e (Non-retry and retry)
+    private final WorkflowRunRepository workflowRunRepository;
     private final WorkflowRepository workflowRepository;
     private final IncomingEventRepository incomingEventRepository;
     private final JobPublisher jobPublisher;
@@ -42,7 +41,7 @@ public class WebhookService {
     private String workflowRunsQueueName;
 
     public WebhookService(
-            WorkflowVersionRepository workflowVersionRepository,
+            WorkflowVersionRepository workflowVersionRepository, WorkflowRunRepository workflowRunRepository,
             WorkflowRepository workflowRepository,
             IncomingEventRepository incomingEventRepository,
             JobPublisher jobPublisher,
@@ -50,6 +49,7 @@ public class WebhookService {
             WorkflowMetricsService workflowMetricsService
     ) {
         this.workflowVersionRepository = workflowVersionRepository;
+        this.workflowRunRepository = workflowRunRepository;
         this.workflowRepository = workflowRepository;
         this.incomingEventRepository = incomingEventRepository;
         this.jobPublisher = jobPublisher;
@@ -65,7 +65,6 @@ public class WebhookService {
     ) {
         Timer.Sample sample = workflowMetricsService.startStepTimer();
 
-<<<<<<< HEAD
         try {
             log.info("WEBHOOK_HIT workflowId={} idemKey={}", workflowId, idempotencyKey);
 
@@ -117,7 +116,7 @@ public class WebhookService {
             log.error("Failed to accept webhook for workflowId={}", workflowId, ex);
             throw ex;
         }
-=======
+
         // 1) Idempotency
         if (idempotencyKey != null &&
                 incomingEventRepository.existsByIdempotencyKey(idempotencyKey)) {
@@ -169,7 +168,7 @@ public class WebhookService {
                 run.getWorkflowVersionId() != null ? run.getWorkflowVersionId() : resolvedVersionId,
                 ev.getPayload()
         );
->>>>>>> 7379d8e (Non-retry and retry)
+
     }
 
     private String toJson(Object o) {
