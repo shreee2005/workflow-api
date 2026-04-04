@@ -13,8 +13,7 @@ public class WorkflowDto {
     private boolean active;
     private UUID activeVersionId;
     private Integer activeVersionNumber;
-<<<<<<< HEAD
+
     private String changeNote;
-=======
->>>>>>> 7379d8e (Non-retry and retry)
+
 }

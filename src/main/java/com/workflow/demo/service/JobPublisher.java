@@ -15,12 +15,7 @@ public class JobPublisher {
         this.rabbitTemplate = rabbitTemplate;
     }
 
-<<<<<<< HEAD
-    public void publishRun(UUID runId, UUID workflowId, UUID workflowVersionId ,String payloadJson) {
-=======
-    public void publishRun(UUID runId, UUID workflowId, UUID workflowVersionId , String payloadJson) {
->>>>>>> 7379d8e (Non-retry and retry)
-
+    public void publishRun(UUID runId, UUID workflowId, UUID workflowVersionId, String payloadJson) {
         WorkflowJobMessage msg = new WorkflowJobMessage();
         msg.setRunId(runId);
         msg.setWorkflowId(workflowId);
@@ -30,5 +25,6 @@ public class JobPublisher {
 
         System.out.println("Publishing to RabbitMQ: runId=" + runId);
         rabbitTemplate.convertAndSend("workflow.tasks", msg);
+
     }
 }
