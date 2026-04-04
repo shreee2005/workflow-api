@@ -16,13 +16,19 @@ public class WorkflowRunService {
         this.workflowRunRepository = workflowRunRepository;
     }
 
+<<<<<<< HEAD
     public WorkflowRun createQueuedRun(UUID workflowId, UUID workflowVersionId, UUID incomingEventId) {
+=======
+    public WorkflowRun createQueuedRun(UUID workflowId, UUID incomingEventId, UUID versionId) {
+>>>>>>> 7379d8e (Non-retry and retry)
         WorkflowRun run = new WorkflowRun();
         run.setWorkflowId(workflowId);
         run.setWorkflowVersionId(workflowVersionId);
         run.setIncomingEventId(incomingEventId);
+        run.setWorkflowVersionId(versionId);
         run.setAttempt(0);
         run.setMaxAttempts(3);
+        run.setDeadLettered(false);
         run.setStatus(WorkflowRun.Status.QUEUED);
 
         WorkflowRun saved = workflowRunRepository.saveAndFlush(run);

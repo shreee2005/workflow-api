@@ -1,5 +1,8 @@
 package com.workflow.demo.entity;
+<<<<<<< HEAD
 
+=======
+>>>>>>> 7379d8e (Non-retry and retry)
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -8,7 +11,10 @@ import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+<<<<<<< HEAD
 @Data
+=======
+>>>>>>> 7379d8e (Non-retry and retry)
 @Entity
 @Table(
         name = "workflow_versions",
@@ -37,4 +43,56 @@ public class WorkflowVersion {
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
+<<<<<<< HEAD
 }
+=======
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public UUID getWorkflowId() {
+        return workflowId;
+    }
+
+    public void setWorkflowId(UUID workflowId) {
+        this.workflowId = workflowId;
+    }
+
+    public int getVersionNumber() {
+        return versionNumber;
+    }
+
+    public void setVersionNumber(int versionNumber) {
+        this.versionNumber = versionNumber;
+    }
+
+    public String getSpec() {
+        return spec;
+    }
+
+    public void setSpec(String spec) {
+        this.spec = spec;
+    }
+
+    public String getChangeNote() {
+        return changeNote;
+    }
+
+    public void setChangeNote(String changeNote) {
+        this.changeNote = changeNote;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(OffsetDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+}
+>>>>>>> 7379d8e (Non-retry and retry)

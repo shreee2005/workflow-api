@@ -15,7 +15,11 @@ public class JobPublisher {
         this.rabbitTemplate = rabbitTemplate;
     }
 
+<<<<<<< HEAD
     public void publishRun(UUID runId, UUID workflowId, UUID workflowVersionId ,String payloadJson) {
+=======
+    public void publishRun(UUID runId, UUID workflowId, UUID workflowVersionId , String payloadJson) {
+>>>>>>> 7379d8e (Non-retry and retry)
 
         WorkflowJobMessage msg = new WorkflowJobMessage();
         msg.setRunId(runId);

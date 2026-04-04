@@ -8,6 +8,7 @@ public class WorkflowJobMessage {
     private UUID workflowVersionId;
     private String payload;
     private int attempt;
+    private UUID workflowVersionId;
 
     public UUID getRunId() {
         return runId;
