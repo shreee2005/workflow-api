@@ -5,7 +5,11 @@ import com.workflow.demo.entity.Workflow;
 import com.workflow.demo.entity.WorkflowVersion;
 import com.workflow.demo.repository.WorkflowRepository;
 import com.workflow.demo.repository.WorkflowVersionRepository;
+<<<<<<< HEAD
 import com.workflow.demo.service.WorkflowVersioningService;
+=======
+import org.springframework.transaction.annotation.Transactional;
+>>>>>>> 7379d8e (Non-retry and retry)
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
@@ -17,25 +21,35 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/workflows")
 public class WorkflowController {
 
+    private final WorkflowVersionRepository workflowVersionRepo;
     private final WorkflowRepository workflowRepository;
     private final WorkflowVersioningService workflowVersioningService;
     private final WorkflowVersionRepository workflowVersionRepository;
 
+<<<<<<< HEAD
     public WorkflowController(
             WorkflowRepository workflowRepository,
             WorkflowVersioningService workflowVersioningService,
             WorkflowVersionRepository workflowVersionRepository
     ) {
+=======
+    public WorkflowController(WorkflowVersionRepository workflowVersionRepo,
+                              WorkflowRepository workflowRepository) {
+        this.workflowVersionRepo = workflowVersionRepo;
+>>>>>>> 7379d8e (Non-retry and retry)
         this.workflowRepository = workflowRepository;
         this.workflowVersioningService = workflowVersioningService;
         this.workflowVersionRepository = workflowVersionRepository;
     }
 
     @PostMapping
+    @Transactional
     public WorkflowDto createWorkflow(@RequestBody WorkflowDto dto) {
+        // 1) Save workflow to get ID
         Workflow wf = new Workflow();
         wf.setName(dto.getName());
         wf.setActive(dto.isActive());
+<<<<<<< HEAD
         wf.setUpdatedAt(OffsetDateTime.now());
 
         Workflow saved = workflowRepository.save(wf);
@@ -52,6 +66,23 @@ public class WorkflowController {
 
         Workflow refreshed = workflowRepository.findById(saved.getId()).orElseThrow();
         return toDtoWithVersion(refreshed, v1);
+=======
+        wf = workflowRepository.save(wf);
+
+        // 2) Create version 1 tied to this workflow
+        WorkflowVersion v1 = new WorkflowVersion();
+        v1.setWorkflowId(wf.getId());
+        v1.setVersionNumber(1);
+        v1.setSpec(wf.getSpec());
+        v1 = workflowVersionRepo.save(v1);
+
+        // 3) Set active version pointers
+        wf.setActiveVersionId(v1.getId());
+        wf.setActiveVersionNumber(v1.getVersionNumber());
+        wf = workflowRepository.save(wf);
+
+        return toDto(wf);
+>>>>>>> 7379d8e (Non-retry and retry)
     }
 
     @GetMapping
@@ -118,6 +149,7 @@ public class WorkflowController {
         dto.setId(wf.getId());
         dto.setName(wf.getName());
         dto.setActive(wf.isActive());
+<<<<<<< HEAD
 
         if (wf.getActiveVersionId() != null) {
             WorkflowVersion v = workflowVersionRepository.findById(wf.getActiveVersionId()).orElse(null);
@@ -146,4 +178,10 @@ public class WorkflowController {
         dto.setChangeNote(v.getChangeNote());
         return dto;
     }
+=======
+        dto.setActiveVersionId(wf.getActiveVersionId());
+        dto.setActiveVersionNumber(wf.getActiveVersionNumber());
+        return dto;
+    }
+>>>>>>> 7379d8e (Non-retry and retry)
 }
