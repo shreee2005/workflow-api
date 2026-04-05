@@ -1,6 +1,9 @@
 package com.workflow.demo.controller;
 
 import com.workflow.demo.service.WebhookService;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,31 +15,37 @@ import java.util.UUID;
 public class WebhookController {
 
     private final WebhookService webhookService;
+    private final Tracer tracer;
 
-    public WebhookController(WebhookService webhookService) {
+    public WebhookController(WebhookService webhookService, Tracer tracer) {
         this.webhookService = webhookService;
+        this.tracer = tracer;
     }
 
     @PostMapping("/{workflowId}")
     public ResponseEntity<?> receive(
             @PathVariable UUID workflowId,
-            @RequestHeader(value = "Idempotency-Key", required = false)
-            String idempotencyKey,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody Map<String, Object> body
     ) {
-        try {
+        Span span = tracer.spanBuilder("webhook.receive").startSpan();
+        try (Scope scope = span.makeCurrent()) {
+            // Add custom span attributes
+            span.setAttribute("workflow.id", workflowId.toString());
+            if (idempotencyKey != null) {
+                span.setAttribute("idempotency.key", idempotencyKey);
+            }
+            span.setAttribute("webhook.payload.size", body.size());
 
-            webhookService.acceptWebhook(
-                    workflowId,
-                    body,
-                    idempotencyKey
-            );
+            webhookService.acceptWebhook(workflowId, body, idempotencyKey);
 
             return ResponseEntity
                     .accepted()
                     .body(Map.of("status", "queued"));
 
         } catch (RuntimeException ex) {
+            span.recordException(ex);
+            span.setAttribute("error", true);
 
             if ("WORKFLOW_NOT_FOUND".equals(ex.getMessage())) {
                 return ResponseEntity
@@ -51,6 +60,8 @@ public class WebhookController {
             }
 
             return ResponseEntity.internalServerError().body(Map.of("error", ex.getMessage()));
+        } finally {
+            span.end();
         }
     }
 }
