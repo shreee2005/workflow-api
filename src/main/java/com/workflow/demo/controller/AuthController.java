@@ -9,10 +9,12 @@ import io.jsonwebtoken.JwtException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 
 /**
  * AuthController - handles signup, login, and password management.
@@ -54,11 +56,11 @@ public class AuthController {
 
     // -----------------------
     // SIGNUP
-    // -----------------------
+    // ----------------------- ;
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@RequestBody SignupDto dto) {
         if (dto == null || dto.email() == null || dto.password() == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "email_and_password_required"));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "email_and_password_required");
         }
 
         try {
@@ -68,9 +70,9 @@ public class AuthController {
                     "email", created.getEmail()
             ));
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "internal_error"));
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error");
         }
     }
 
@@ -80,24 +82,24 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginDto dto) {
         if (dto == null || dto.email() == null || dto.password() == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "email_and_password_required"));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "email_and_password_required");
         }
 
         Optional<User> opt = userService.findByEmail(dto.email().trim().toLowerCase());
         if (opt.isEmpty()) {
-            return ResponseEntity.status(401).body(Map.of("error", "invalid_credentials"));
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid_credentials");
         }
 
         User user = opt.get();
 
         // If no local password set (OAuth-only account), instruct user to use OAuth or set-password
         if (user.getPassword() == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "no_local_password_set", "message", "use OAuth login or set a password via /auth/set-password after signing in"));
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "no_local_password_set");
         }
 
         boolean ok = passwordEncoder.matches(dto.password(), user.getPassword());
         if (!ok) {
-            return ResponseEntity.status(401).body(Map.of("error", "invalid_credentials"));
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid_credentials");
         }
 
         String token = jwtUtil.generateToken(user.getId().toString(), user.getEmail());
@@ -111,10 +113,10 @@ public class AuthController {
     public ResponseEntity<?> setPassword(@RequestHeader(name = "Authorization", required = false) String authorization,
                                          @RequestBody SetPasswordDto dto) {
         if (authorization == null || !authorization.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).body(Map.of("error", "missing_authorization"));
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "missing_authorization");
         }
         if (dto == null || dto.newPassword() == null || dto.newPassword().isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "new_password_required"));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "new_password_required");
         }
 
         String token = authorization.substring("Bearer ".length()).trim();
@@ -124,19 +126,19 @@ public class AuthController {
             Jws<Claims> parsed = jwtUtil.parseClaims(token);
             userId = parsed.getBody().getSubject();
         } catch (JwtException e) {
-            return ResponseEntity.status(401).body(Map.of("error", "invalid_token"));
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid_token");
         }
 
         UUID uid;
         try {
             uid = UUID.fromString(userId);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(400).body(Map.of("error", "invalid_user_id_in_token"));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid_user_id_in_token");
         }
 
         Optional<User> opt = userRepository.findById(uid);
         if (opt.isEmpty()) {
-            return ResponseEntity.status(404).body(Map.of("error", "user_not_found"));
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "user_not_found");
         }
 
         User user = opt.get();
@@ -144,7 +146,7 @@ public class AuthController {
         // If user had an existing password and provided currentPassword, verify it
         if (user.getPassword() != null && dto.currentPassword() != null && !dto.currentPassword().isBlank()) {
             if (!passwordEncoder.matches(dto.currentPassword(), user.getPassword())) {
-                return ResponseEntity.status(401).body(Map.of("error", "current_password_incorrect"));
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "current_password_incorrect");
             }
         }
 
@@ -164,7 +166,7 @@ public class AuthController {
         // - Confirm dto.email matches token
         // - Set password for that account
         // Here we return 501 Not Implemented so it's explicit.
-        return ResponseEntity.status(501).body(Map.of("error", "not_implemented", "message", "Use /set-password for authenticated flows; implement email-token flow for linking"));
+        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "not_implemented");
     }
 }
 

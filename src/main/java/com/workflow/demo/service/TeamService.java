@@ -7,8 +7,10 @@ import com.workflow.demo.entity.User;
 import com.workflow.demo.repository.TeamRepository;
 import com.workflow.demo.repository.TeamMemberRepository;
 import com.workflow.demo.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 import java.util.List;
@@ -60,18 +62,15 @@ public class TeamService {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new IllegalArgumentException("team not found"));
 
-        // don't create duplicate invite if exists
         Optional<TeamMember> existing = teamMemberRepository.findByTeamIdAndEmail(teamId, email);
         if (existing.isPresent()) {
             TeamMember em = existing.get();
-            // if previously removed, re-invite
             em.setStatus(Status.INVITED);
             em.setInvitedAt(OffsetDateTime.now());
             em.setAcceptedAt(null);
             return teamMemberRepository.save(em);
         }
 
-        // if user exists, attach userId (optional)
         Optional<User> maybe = userRepository.findByEmail(email);
         UUID userId = maybe.map(User::getId).orElse(null);
 
@@ -94,7 +93,6 @@ public class TeamService {
             throw new IllegalArgumentException("invite does not belong to team");
         }
 
-        // verify accepting user matches invite email (if userId known) or allow if emails match
         Optional<User> userOpt = userRepository.findById(acceptingUserId);
         if (userOpt.isEmpty()) throw new IllegalArgumentException("user not found");
 
@@ -110,12 +108,18 @@ public class TeamService {
     }
 
     public List<Team> listTeamsForOwner(UUID ownerId) {
-        return teamRepository.findByOwnerId(ownerId);
+        return teamRepository.findVisibleTeamsForUser(ownerId, Status.ACCEPTED);
     }
 
-    public List<TeamMember> listMembers(UUID teamId) {
-        return teamMemberRepository.findByTeamId(teamId);
+    public List<TeamMember> listMembers(UUID teamId, UUID requesterUserId) {
+        boolean hasAccess = teamRepository.findVisibleTeamsForUser(requesterUserId, Status.ACCEPTED)
+                .stream()
+                .anyMatch(t -> t.getId().equals(teamId));
+
+        if (!hasAccess) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "not_team_member");
+        }
+
+        return teamMemberRepository.findByTeamIdAndStatus(teamId, Status.ACCEPTED);
     }
-
-
 }

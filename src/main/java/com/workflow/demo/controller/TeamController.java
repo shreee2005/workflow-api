@@ -9,12 +9,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
 import java.util.List;
 import java.util.Optional;
+import java.time.OffsetDateTime;
 
 @RestController
 @RequestMapping("/api/teams")
@@ -27,13 +30,12 @@ public class TeamController {
         this.userRepository = userRepository;
     }
 
-    /** Create a team. Body: { "name": "Acme Team" } -> returns 201 with created resource and id */
     @PostMapping
     public ResponseEntity<?> createTeam(@RequestBody Map<String, String> body) {
 
         String name = body.get("name");
         if (name == null || name.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "name_required"));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name_required");
         }
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -41,7 +43,7 @@ public class TeamController {
 
         String ownerEmail = (String) auth.getCredentials();
         if (ownerEmail == null || ownerEmail.isBlank()) {
-            return ResponseEntity.status(500).body(Map.of("error", "email_missing_in_token"));
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "email_missing_in_token");
         }
 
         Team team = teamService.createTeam(name.trim(), ownerId, ownerEmail);
@@ -59,20 +61,31 @@ public class TeamController {
     }
 
     @GetMapping("/{teamId}/members")
-    public ResponseEntity<List<TeamMember>> listMembers(@PathVariable UUID teamId) {
-        return ResponseEntity.ok(teamService.listMembers(teamId));
+    public ResponseEntity<List<MemberView>> listMembers(@PathVariable UUID teamId) {
+        List<MemberView> members = teamService.listMembers(teamId, currentUserId())
+                .stream()
+                .map(m -> new MemberView(
+                        m.getId(),
+                        m.getEmail(),
+                        m.getUserId(),
+                        m.getStatus() != null ? m.getStatus().name() : null,
+                        m.getInvitedAt(),
+                        m.getAcceptedAt()
+                ))
+                .toList();
+        return ResponseEntity.ok(members);
     }
 
-    /** Invite a user by email */
     @PostMapping("/{teamId}/invite")
     public ResponseEntity<?> invite(@PathVariable UUID teamId, @RequestBody Map<String, String> body) {
         String email = body.get("email");
-        if (email == null || email.isBlank()) return ResponseEntity.badRequest().body(Map.of("error", "email_required"));
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "email_required");
+        }
         TeamMember m = teamService.inviteMember(teamId, email.trim().toLowerCase());
         return ResponseEntity.ok(Map.of("inviteId", m.getId()));
     }
 
-    /** Accept an invite (user must be authenticated and email must match invite) */
     @PostMapping("/{teamId}/invites/{inviteId}/accept")
     public ResponseEntity<?> acceptInvite(@PathVariable UUID teamId, @PathVariable UUID inviteId) {
         UUID userId = currentUserId();
@@ -84,16 +97,23 @@ public class TeamController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         if (auth == null || auth.getPrincipal() == null) {
-            throw new IllegalStateException("unauthenticated request");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthenticated");
         }
 
         if (auth.getPrincipal() instanceof UUID userId) {
             return userId;
         }
 
-        throw new IllegalStateException(
-                "unexpected principal type: " + auth.getPrincipal().getClass().getName()
-        );
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unexpected_principal_type");
     }
+
+    public record MemberView(
+            UUID id,
+            String email,
+            UUID userId,
+            String status,
+            OffsetDateTime invitedAt,
+            OffsetDateTime acceptedAt
+    ) {}
 
 }

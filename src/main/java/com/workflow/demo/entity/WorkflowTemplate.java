@@ -1,7 +1,11 @@
 package com.workflow.demo.entity;
 
-import jakarta.persistence.*;
-import lombok.Data;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -9,8 +13,9 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "workflows")
-public class Workflow {
+@Table(name = "workflow_templates")
+public class WorkflowTemplate {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -18,23 +23,24 @@ public class Workflow {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "owner_id", nullable = false)
-    private UUID ownerId;
+    @Column(nullable = false)
+    private String category;
 
-    @Column(columnDefinition = "jsonb")
+    @Column(nullable = false, length = 1000)
+    private String description;
+
+    @Column(columnDefinition = "jsonb", nullable = false)
     @JdbcTypeCode(SqlTypes.JSON)
     private String spec;
 
-    @Column(name = "active_version_id")
-    private UUID activeVersionId;
+    @Column(nullable = false)
+    private boolean active = true;
 
-    private boolean active = false;
-
+    @Column(nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
-    private OffsetDateTime updatedAt = OffsetDateTime.now();
 
-    @Column(name = "active_version_number")
-    private Integer activeVersionNumber;
+    @Column(nullable = false)
+    private OffsetDateTime updatedAt = OffsetDateTime.now();
 
     public UUID getId() {
         return id;
@@ -52,12 +58,20 @@ public class Workflow {
         this.name = name;
     }
 
-    public UUID getOwnerId() {
-        return ownerId;
+    public String getCategory() {
+        return category;
     }
 
-    public void setOwnerId(UUID ownerId) {
-        this.ownerId = ownerId;
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public String getSpec() {
@@ -66,10 +80,6 @@ public class Workflow {
 
     public void setSpec(String spec) {
         this.spec = spec;
-    }
-
-    public UUID getActiveVersionId() {
-        return activeVersionId;
     }
 
     public boolean isActive() {
@@ -94,17 +104,5 @@ public class Workflow {
 
     public void setUpdatedAt(OffsetDateTime updatedAt) {
         this.updatedAt = updatedAt;
-    }
-
-    public void setActiveVersionId(UUID activeVersionId) {
-        this.activeVersionId = activeVersionId;
-    }
-
-    public Integer getActiveVersionNumber() {
-        return activeVersionNumber;
-    }
-
-    public void setActiveVersionNumber(Integer activeVersionNumber) {
-        this.activeVersionNumber = activeVersionNumber;
     }
 }

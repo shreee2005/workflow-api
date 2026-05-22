@@ -8,6 +8,8 @@ import com.workflow.demo.service.ApiKeyService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -45,14 +47,12 @@ public class ApiKeyController {
                 .orElseThrow(() -> new IllegalArgumentException("team_not_found"));
 
         if (!team.getOwnerId().equals(userId)) {
-            return ResponseEntity.status(403)
-                    .body(Map.of("error", "not_team_owner"));
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "not_team_owner");
         }
 
         String name = body.getOrDefault("name", "unnamed").trim();
         if (name.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "name_required"));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name_required");
         }
 
         String composite = apiKeyService.createApiKey(teamId, userId, name);
@@ -77,8 +77,7 @@ public class ApiKeyController {
                 .orElseThrow(() -> new IllegalArgumentException("team_not_found"));
 
         if (!team.getOwnerId().equals(userId)) {
-            return ResponseEntity.status(403)
-                    .body(Map.of("error", "not_team_owner"));
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "not_team_owner");
         }
 
         List<ApiKey> keys = apiKeyRepo.findByTeamIdAndRevokedFalse(teamId);
@@ -110,8 +109,7 @@ public class ApiKeyController {
                 .orElseThrow(() -> new IllegalArgumentException("team_not_found"));
 
         if (!team.getOwnerId().equals(userId)) {
-            return ResponseEntity.status(403)
-                    .body(Map.of("error", "not_team_owner"));
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "not_team_owner");
         }
 
         apiKeyService.revokeKey(keyId);
@@ -122,11 +120,11 @@ public class ApiKeyController {
 
     private UUID currentUserId(Authentication auth) {
         if (auth == null || auth.getPrincipal() == null) {
-            throw new IllegalStateException("unauthenticated");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthenticated");
         }
         if (auth.getPrincipal() instanceof UUID id) {
             return id;
         }
-        throw new IllegalStateException("unexpected_principal_type");
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unexpected_principal_type");
     }
 }

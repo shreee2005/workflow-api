@@ -5,6 +5,8 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.util.Map;
 
@@ -21,7 +23,7 @@ public class DebugController {
     @GetMapping("/verify")
     public ResponseEntity<?> verify(@RequestHeader(name = "Authorization", required = false) String auth) {
         if (auth == null || !auth.startsWith("Bearer ")) {
-            return ResponseEntity.status(400).body(Map.of("error", "missing_authorization"));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "missing_authorization");
         }
         String token = auth.substring("Bearer ".length()).trim();
         try {
@@ -31,7 +33,7 @@ public class DebugController {
                     "claims", parsed.getBody()
             ));
         } catch (JwtException e) {
-            return ResponseEntity.status(401).body(Map.of("error", "invalid_token", "message", e.getMessage()));
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid_token");
         }
     }
 }

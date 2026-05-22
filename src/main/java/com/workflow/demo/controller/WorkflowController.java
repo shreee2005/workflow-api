@@ -6,8 +6,11 @@ import com.workflow.demo.entity.WorkflowVersion;
 import com.workflow.demo.repository.WorkflowRepository;
 import com.workflow.demo.repository.WorkflowVersionRepository;
 import com.workflow.demo.service.WorkflowVersioningService;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -34,11 +37,14 @@ public class WorkflowController {
 
     @PostMapping
     @Transactional
-    public WorkflowDto createWorkflow(@RequestBody WorkflowDto dto) {
+    public WorkflowDto createWorkflow(@RequestBody WorkflowDto dto, Authentication auth) {
+        UUID ownerId = currentUserId(auth);
+
         Workflow wf = new Workflow();
         wf.setName(dto.getName());
+        wf.setOwnerId(ownerId);
         wf.setActive(dto.isActive());
-        wf.setSpec(dto.getSpec()); // legacy fallback field
+        wf.setSpec(dto.getSpec());
         wf.setUpdatedAt(OffsetDateTime.now());
 
         Workflow saved = workflowRepository.save(wf);
@@ -53,34 +59,37 @@ public class WorkflowController {
                 note
         );
 
-        Workflow refreshed = workflowRepository.findById(saved.getId()).orElseThrow();
+        Workflow refreshed = workflowRepository.findByIdAndOwnerId(saved.getId(), ownerId).orElseThrow();
         return toDtoWithVersion(refreshed, v1);
     }
 
     @GetMapping
-    public List<WorkflowDto> listWorkflows() {
-        return workflowRepository.findAllByOrderByCreatedAtAsc()
+    public List<WorkflowDto> listWorkflows(Authentication auth) {
+        UUID ownerId = currentUserId(auth);
+        return workflowRepository.findAllByOwnerIdOrderByCreatedAtAsc(ownerId)
                 .stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
     @GetMapping("/{id}")
-    public WorkflowDto getWorkflow(@PathVariable UUID id) {
-        Workflow wf = workflowRepository.findById(id)
+    public WorkflowDto getWorkflow(@PathVariable UUID id, Authentication auth) {
+        UUID ownerId = currentUserId(auth);
+        Workflow wf = workflowRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
         return toDto(wf);
     }
 
     @PutMapping("/{id}")
     @Transactional
-    public WorkflowDto updateWorkflow(@PathVariable UUID id, @RequestBody WorkflowDto dto) {
-        Workflow wf = workflowRepository.findById(id)
+    public WorkflowDto updateWorkflow(@PathVariable UUID id, @RequestBody WorkflowDto dto, Authentication auth) {
+        UUID ownerId = currentUserId(auth);
+        Workflow wf = workflowRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
 
         wf.setName(dto.getName());
         wf.setActive(dto.isActive());
-        wf.setSpec(dto.getSpec()); // legacy fallback field
+        wf.setSpec(dto.getSpec());
         wf.setUpdatedAt(OffsetDateTime.now());
         workflowRepository.save(wf);
 
@@ -94,13 +103,14 @@ public class WorkflowController {
                 note
         );
 
-        Workflow refreshed = workflowRepository.findById(wf.getId()).orElseThrow();
+        Workflow refreshed = workflowRepository.findByIdAndOwnerId(wf.getId(), ownerId).orElseThrow();
         return toDtoWithVersion(refreshed, newVersion);
     }
 
     @PostMapping("/{id}/activate")
-    public WorkflowDto activate(@PathVariable UUID id) {
-        Workflow wf = workflowRepository.findById(id)
+    public WorkflowDto activate(@PathVariable UUID id, Authentication auth) {
+        UUID ownerId = currentUserId(auth);
+        Workflow wf = workflowRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
         wf.setActive(true);
         wf.setUpdatedAt(OffsetDateTime.now());
@@ -108,12 +118,23 @@ public class WorkflowController {
     }
 
     @PostMapping("/{id}/deactivate")
-    public WorkflowDto deactivate(@PathVariable UUID id) {
-        Workflow wf = workflowRepository.findById(id)
+    public WorkflowDto deactivate(@PathVariable UUID id, Authentication auth) {
+        UUID ownerId = currentUserId(auth);
+        Workflow wf = workflowRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
         wf.setActive(false);
         wf.setUpdatedAt(OffsetDateTime.now());
         return toDto(workflowRepository.save(wf));
+    }
+
+    private UUID currentUserId(Authentication auth) {
+        if (auth == null || auth.getPrincipal() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized");
+        }
+        if (auth.getPrincipal() instanceof UUID userId) {
+            return userId;
+        }
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unexpected_principal_type");
     }
 
     private WorkflowDto toDto(Workflow wf) {
@@ -133,7 +154,7 @@ public class WorkflowController {
             }
         }
 
-        dto.setSpec(wf.getSpec()); // fallback for legacy rows
+        dto.setSpec(wf.getSpec());
         dto.setActiveVersionId(wf.getActiveVersionId());
         dto.setActiveVersionNumber(wf.getActiveVersionNumber());
         return dto;
