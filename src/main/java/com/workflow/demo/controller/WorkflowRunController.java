@@ -1,6 +1,7 @@
 package com.workflow.demo.controller;
 
 import com.workflow.demo.entity.WorkflowRun;
+import com.workflow.demo.entity.WorkflowRunStep;
 import com.workflow.demo.service.WorkflowRunService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -28,6 +29,11 @@ public class WorkflowRunController {
     @GetMapping("/runs/{runId}")
     public WorkflowRun getRun(@PathVariable UUID runId, Authentication auth) {
         return workflowRunService.getRun(runId, currentUserId(auth));
+    }
+
+    @GetMapping("/runs/{runId}/steps")
+    public List<WorkflowRunStep> getRunSteps(@PathVariable UUID runId, Authentication auth) {
+        return workflowRunService.getRunSteps(runId, currentUserId(auth));
     }
 
     private UUID currentUserId(Authentication auth) {

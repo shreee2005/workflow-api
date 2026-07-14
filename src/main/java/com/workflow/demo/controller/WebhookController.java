@@ -6,8 +6,6 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 import java.util.Map;
 import java.util.UUID;
@@ -50,14 +48,18 @@ public class WebhookController {
             span.setAttribute("error", true);
 
             if ("WORKFLOW_NOT_FOUND".equals(ex.getMessage())) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "WORKFLOW_NOT_FOUND");
+                return ResponseEntity
+                        .status(404)
+                        .body(Map.of("error", "Workflow not found"));
             }
 
             if ("WORKFLOW_NOT_ACTIVE".equals(ex.getMessage())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "WORKFLOW_NOT_ACTIVE");
+                return ResponseEntity
+                        .badRequest()
+                        .body(Map.of("error", "Workflow is not active"));
             }
 
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error");
+            return ResponseEntity.internalServerError().body(Map.of("error", ex.getMessage()));
         } finally {
             span.end();
         }

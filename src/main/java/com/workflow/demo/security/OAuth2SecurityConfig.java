@@ -50,6 +50,7 @@ public class OAuth2SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers("/actuator/**", "/api/debug/**", "/error").permitAll()
                         .requestMatchers("/oauth2/**", "/login/**").permitAll()
+                        .requestMatchers("/plugins").permitAll()
 
                         // Existing webhook/public routes
                         .requestMatchers("/api/webhooks/**").permitAll()

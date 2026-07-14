@@ -2,8 +2,10 @@ package com.workflow.demo.service;
 
 import com.workflow.demo.entity.Workflow;
 import com.workflow.demo.entity.WorkflowRun;
+import com.workflow.demo.entity.WorkflowRunStep;
 import com.workflow.demo.repository.WorkflowRepository;
 import com.workflow.demo.repository.WorkflowRunRepository;
+import com.workflow.demo.repository.WorkflowRunStepRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,10 +16,16 @@ public class WorkflowRunService {
 
     private final WorkflowRunRepository workflowRunRepository;
     private final WorkflowRepository workflowRepository;
+    private final WorkflowRunStepRepository workflowRunStepRepository;
 
-    public WorkflowRunService(WorkflowRunRepository workflowRunRepository, WorkflowRepository workflowRepository) {
+    public WorkflowRunService(
+            WorkflowRunRepository workflowRunRepository,
+            WorkflowRepository workflowRepository,
+            WorkflowRunStepRepository workflowRunStepRepository
+    ) {
         this.workflowRunRepository = workflowRunRepository;
         this.workflowRepository = workflowRepository;
+        this.workflowRunStepRepository = workflowRunStepRepository;
     }
 
     public WorkflowRun createQueuedRun(UUID workflowId, UUID workflowVersionId, UUID incomingEventId) {
@@ -50,5 +58,13 @@ public class WorkflowRunService {
             throw new RuntimeException("Workflow not found");
         }
         return run;
+    }
+
+    public List<WorkflowRunStep> getRunSteps(UUID runId, UUID userId) {
+        WorkflowRun run = workflowRunRepository.findById(runId).orElseThrow();
+        // verify ownership of parent workflow
+        workflowRepository.findByIdAndOwnerId(run.getWorkflowId(), userId)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+        return workflowRunStepRepository.findByRunIdOrderByStepIndexAsc(runId);
     }
 }
