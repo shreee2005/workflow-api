@@ -93,6 +93,33 @@ public class TeamController {
         return ResponseEntity.ok(Map.of("status", m.getStatus()));
     }
 
+    @GetMapping("/invitations")
+    public ResponseEntity<List<InvitationView>> listMyInvitations() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = (String) auth.getCredentials();
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "email_not_found_in_session");
+        }
+
+        List<InvitationView> invitations = teamService.listInvitationsForEmail(email)
+                .stream()
+                .map(m -> new InvitationView(
+                        m.getId(),
+                        m.getTeam().getId(),
+                        m.getTeam().getName(),
+                        m.getInvitedAt()
+                ))
+                .toList();
+        return ResponseEntity.ok(invitations);
+    }
+
+    @PostMapping("/{teamId}/invites/{inviteId}/decline")
+    public ResponseEntity<?> declineInvite(@PathVariable UUID teamId, @PathVariable UUID inviteId) {
+        UUID userId = currentUserId();
+        TeamMember m = teamService.declineInvite(teamId, inviteId, userId);
+        return ResponseEntity.ok(Map.of("status", m.getStatus()));
+    }
+
     private UUID currentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
@@ -116,4 +143,10 @@ public class TeamController {
             OffsetDateTime acceptedAt
     ) {}
 
+    public record InvitationView(
+            UUID inviteId,
+            UUID teamId,
+            String teamName,
+            OffsetDateTime invitedAt
+    ) {}
 }

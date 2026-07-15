@@ -122,4 +122,31 @@ public class TeamService {
 
         return teamMemberRepository.findByTeamIdAndStatus(teamId, Status.ACCEPTED);
     }
+
+    public List<TeamMember> listInvitationsForEmail(String email) {
+        return teamMemberRepository.findByEmailAndStatus(email, Status.INVITED);
+    }
+
+    @Transactional
+    public TeamMember declineInvite(UUID teamId, UUID inviteId, UUID acceptingUserId) {
+        TeamMember invite = teamMemberRepository.findById(inviteId)
+                .orElseThrow(() -> new IllegalArgumentException("invite not found"));
+
+        if (!invite.getTeam().getId().equals(teamId)) {
+            throw new IllegalArgumentException("invite does not belong to team");
+        }
+
+        Optional<User> userOpt = userRepository.findById(acceptingUserId);
+        if (userOpt.isEmpty()) {
+            throw new IllegalArgumentException("user not found");
+        }
+
+        User user = userOpt.get();
+        if (!user.getEmail().equalsIgnoreCase(invite.getEmail())) {
+            throw new IllegalArgumentException("invite email does not match declining user");
+        }
+
+        invite.setStatus(Status.REMOVED);
+        return teamMemberRepository.save(invite);
+    }
 }
