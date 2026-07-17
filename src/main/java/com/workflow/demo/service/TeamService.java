@@ -22,13 +22,16 @@ public class TeamService {
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
     public TeamService(TeamRepository teamRepository,
                        TeamMemberRepository teamMemberRepository,
-                       UserRepository userRepository) {
+                       UserRepository userRepository,
+                       EmailService emailService) {
         this.teamRepository = teamRepository;
         this.teamMemberRepository = teamMemberRepository;
         this.userRepository = userRepository;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -68,7 +71,9 @@ public class TeamService {
             em.setStatus(Status.INVITED);
             em.setInvitedAt(OffsetDateTime.now());
             em.setAcceptedAt(null);
-            return teamMemberRepository.save(em);
+            TeamMember saved = teamMemberRepository.save(em);
+            emailService.sendInvitationEmail(email, team.getName(), teamId, saved.getId());
+            return saved;
         }
 
         Optional<User> maybe = userRepository.findByEmail(email);
@@ -81,7 +86,9 @@ public class TeamService {
                 .status(Status.INVITED)
                 .invitedAt(OffsetDateTime.now())
                 .build();
-        return teamMemberRepository.save(member);
+        TeamMember saved = teamMemberRepository.save(member);
+        emailService.sendInvitationEmail(email, team.getName(), teamId, saved.getId());
+        return saved;
     }
 
     @Transactional
@@ -148,5 +155,36 @@ public class TeamService {
 
         invite.setStatus(Status.REMOVED);
         return teamMemberRepository.save(invite);
+    }
+
+    public List<TeamMember> listPendingInvitations(UUID teamId, UUID requesterUserId) {
+        boolean hasAccess = teamRepository.findVisibleTeamsForUser(requesterUserId, Status.ACCEPTED)
+                .stream()
+                .anyMatch(t -> t.getId().equals(teamId));
+
+        if (!hasAccess) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "not_team_member");
+        }
+
+        return teamMemberRepository.findByTeamIdAndStatus(teamId, Status.INVITED);
+    }
+
+    @Transactional
+    public void cancelInvitation(UUID teamId, UUID inviteId, UUID requesterUserId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new IllegalArgumentException("team not found"));
+
+        if (!team.getOwnerId().equals(requesterUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "not_team_owner");
+        }
+
+        TeamMember invite = teamMemberRepository.findById(inviteId)
+                .orElseThrow(() -> new IllegalArgumentException("invite not found"));
+
+        if (!invite.getTeam().getId().equals(teamId)) {
+            throw new IllegalArgumentException("invite does not belong to team");
+        }
+
+        teamMemberRepository.delete(invite);
     }
 }

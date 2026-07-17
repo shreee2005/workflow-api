@@ -50,9 +50,13 @@ public class GlobalExceptionHandler {
         }
         return switch (message) {
             case "WORKFLOW_NOT_FOUND", "WAIT_STATE_NOT_FOUND", "team_not_found", "Workflow not found",
-                    "Plugin not found", "PLUGIN_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+                    "Plugin not found", "PLUGIN_NOT_FOUND",
+                    "team not found", "invite not found" -> HttpStatus.NOT_FOUND;
             case "WORKFLOW_NOT_ACTIVE", "Workflow is not active" -> HttpStatus.BAD_REQUEST;
-            case "not_team_owner" -> HttpStatus.FORBIDDEN;
+            case "not_team_owner", "not_team_member",
+                    "invite does not belong to team",
+                    "invite email does not match accepting user",
+                    "invite email does not match declining user" -> HttpStatus.FORBIDDEN;
             case "unauthenticated request", "unauthenticated", "missing_authorization",
                     "invalid_token", "invalid_credentials", "no_local_password_set", "current_password_incorrect" -> HttpStatus.UNAUTHORIZED;
             default -> HttpStatus.BAD_REQUEST;

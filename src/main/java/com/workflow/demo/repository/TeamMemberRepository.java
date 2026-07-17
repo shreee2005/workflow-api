@@ -22,5 +22,6 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, UUID> {
     @Query("select m from TeamMember m where m.team.id = :teamId and lower(m.email) = lower(:email)")
     Optional<TeamMember> findByTeamIdAndEmail(@Param("teamId") UUID teamId, @Param("email") String email);
 
-    List<TeamMember> findByEmailAndStatus(String email, Status status);
+    @Query("select m from TeamMember m join fetch m.team where lower(m.email) = lower(:email) and m.status = :status")
+    List<TeamMember> findByEmailAndStatus(@Param("email") String email, @Param("status") Status status);
 }

@@ -55,9 +55,19 @@ public class TeamController {
 
 
     @GetMapping
-    public ResponseEntity<List<Team>> listMyTeams() {
-        UUID ownerId = currentUserId();
-        return ResponseEntity.ok(teamService.listTeamsForOwner(ownerId));
+    public ResponseEntity<List<TeamView>> listMyTeams() {
+        UUID userId = currentUserId();
+        List<TeamView> teams = teamService.listTeamsForOwner(userId)
+                .stream()
+                .map(t -> new TeamView(
+                        t.getId(),
+                        t.getName(),
+                        t.getOwnerId(),
+                        t.getOwnerId().equals(userId) ? "OWNER" : "MEMBER",
+                        t.getCreatedAt()
+                ))
+                .toList();
+        return ResponseEntity.ok(teams);
     }
 
     @GetMapping("/{teamId}/members")
@@ -83,7 +93,13 @@ public class TeamController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "email_required");
         }
         TeamMember m = teamService.inviteMember(teamId, email.trim().toLowerCase());
-        return ResponseEntity.ok(Map.of("inviteId", m.getId()));
+        return ResponseEntity.ok(Map.of(
+                "inviteId", m.getId(),
+                "email", m.getEmail(),
+                "teamId", teamId,
+                "teamName", m.getTeam().getName(),
+                "status", m.getStatus().name()
+        ));
     }
 
     @PostMapping("/{teamId}/invites/{inviteId}/accept")
@@ -120,6 +136,28 @@ public class TeamController {
         return ResponseEntity.ok(Map.of("status", m.getStatus()));
     }
 
+    @GetMapping("/{teamId}/invites/pending")
+    public ResponseEntity<List<MemberView>> listPendingInvitations(@PathVariable UUID teamId) {
+        List<MemberView> members = teamService.listPendingInvitations(teamId, currentUserId())
+                .stream()
+                .map(m -> new MemberView(
+                        m.getId(),
+                        m.getEmail(),
+                        m.getUserId(),
+                        m.getStatus() != null ? m.getStatus().name() : null,
+                        m.getInvitedAt(),
+                        m.getAcceptedAt()
+                ))
+                .toList();
+        return ResponseEntity.ok(members);
+    }
+
+    @DeleteMapping("/{teamId}/invites/{inviteId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelInvitation(@PathVariable UUID teamId, @PathVariable UUID inviteId) {
+        teamService.cancelInvitation(teamId, inviteId, currentUserId());
+    }
+
     private UUID currentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
@@ -148,5 +186,13 @@ public class TeamController {
             UUID teamId,
             String teamName,
             OffsetDateTime invitedAt
+    ) {}
+
+    public record TeamView(
+            UUID id,
+            String name,
+            UUID ownerId,
+            String role,
+            OffsetDateTime createdAt
     ) {}
 }

@@ -70,6 +70,55 @@ class TeamInvitationIntegrationTests {
         assertEquals("[]", listRespAfter.body().trim());
     }
 
+    @Test
+    void teamInvitationPendingAndCancel_test() throws Exception {
+        // 1. Create Owner & Member Accounts
+        String ownerEmail = "owner-cancel-" + UUID.randomUUID() + "@local.test";
+        String memberEmail = "member-cancel-" + UUID.randomUUID() + "@local.test";
+
+        assertEquals(201, send(jsonPost("/auth/signup", 
+                "{\"email\":\"" + ownerEmail + "\",\"password\":\"Pass123!\",\"name\":\"Owner User\"}")).statusCode());
+        assertEquals(201, send(jsonPost("/auth/signup", 
+                "{\"email\":\"" + memberEmail + "\",\"password\":\"Pass123!\",\"name\":\"Invited User\"}")).statusCode());
+
+        String ownerToken = loginToken(ownerEmail, "Pass123!");
+
+        // 2. Owner creates a new team
+        HttpResponse<String> createTeamResp = send(authJsonPost("/api/teams", 
+                "{\"name\":\"Pending Cancel Sandbox\"}", ownerToken));
+        assertEquals(201, createTeamResp.statusCode());
+        String teamId = extractJsonValue(createTeamResp.body(), "teamId");
+        assertNotNull(teamId);
+
+        // 3. Owner invites Member to the team
+        HttpResponse<String> inviteResp = send(authJsonPost("/api/teams/" + teamId + "/invite", 
+                "{\"email\":\"" + memberEmail + "\"}", ownerToken));
+        assertEquals(200, inviteResp.statusCode());
+        String inviteId = extractJsonValue(inviteResp.body(), "inviteId");
+        assertNotNull(inviteId);
+
+        // 4. Owner fetches pending invitations list for the team
+        HttpRequest pendingListReq = HttpRequest.newBuilder(uri("/api/teams/" + teamId + "/invites/pending"))
+                .header("Authorization", "Bearer " + ownerToken)
+                .GET().build();
+        HttpResponse<String> pendingListResp = send(pendingListReq);
+        assertEquals(200, pendingListResp.statusCode());
+        assertTrue(pendingListResp.body().contains(memberEmail));
+        assertTrue(pendingListResp.body().contains(inviteId));
+
+        // 5. Owner cancels the pending invitation
+        HttpRequest cancelReq = HttpRequest.newBuilder(uri("/api/teams/" + teamId + "/invites/" + inviteId))
+                .header("Authorization", "Bearer " + ownerToken)
+                .DELETE().build();
+        HttpResponse<String> cancelResp = send(cancelReq);
+        assertEquals(204, cancelResp.statusCode());
+
+        // 6. Owner queries pending invitations list again, should be empty
+        HttpResponse<String> pendingListRespAfter = send(pendingListReq);
+        assertEquals(200, pendingListRespAfter.statusCode());
+        assertEquals("[]", pendingListRespAfter.body().trim());
+    }
+
     private HttpRequest jsonPost(String path, String json) {
         return HttpRequest.newBuilder(uri(path))
                 .POST(HttpRequest.BodyPublishers.ofString(json))

@@ -1,5 +1,6 @@
 package com.workflow.demo.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.OffsetDateTime;
@@ -30,7 +31,9 @@ public class Team {
 
     // optional bi-directional mapping (mappedBy in TeamMember)
     @OneToMany(mappedBy = "team", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @Builder.Default
     private Set<TeamMember> members = new HashSet<>();
 }
