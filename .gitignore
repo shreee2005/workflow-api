@@ -4,8 +4,9 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-docker/Dockerfile/
-sql/schema.sql/
+docker/Dockerfile
+sql/schema.sql
+
 ### STS ###
 .apt_generated
 .classpath
