@@ -32,7 +32,7 @@ build/
 !**/src/test/**/build/
 src/main/resources/application.properties
 src/main/resources/application-prod.properties
-src/main/resources/db.migration
+src/main/resources/db
 
 ### VS Code ###
 .vscode/
