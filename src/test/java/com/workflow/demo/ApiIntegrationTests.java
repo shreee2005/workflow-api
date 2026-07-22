@@ -13,8 +13,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class ApiIntegrationTests {
+
+class ApiIntegrationTests extends BaseIntegrationTest{
 
     @LocalServerPort
     int port;

@@ -3,6 +3,7 @@ package com.workflow.demo;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.testcontainers.shaded.com.fasterxml.jackson.databind.ser.Serializers;
 
 import java.io.IOException;
 import java.net.URI;
@@ -13,8 +14,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class TeamInvitationIntegrationTests {
+class TeamInvitationIntegrationTests extends BaseIntegrationTest {
 
     @LocalServerPort
     int port;
