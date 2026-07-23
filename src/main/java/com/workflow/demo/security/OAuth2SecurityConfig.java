@@ -64,9 +64,11 @@ public class OAuth2SecurityConfig {
                 )
                 .httpBasic(Customizer.withDefaults()); // harmless + helps actuator tooling compatibility
 
-        http.oauth2Login(oauth ->
-                oauth.successHandler(oauth2LoginSuccessHandler)
-        );
+        if (clientRegistrationRepositoryProvider.getIfAvailable() != null) {
+            http.oauth2Login(oauth ->
+                    oauth.successHandler(oauth2LoginSuccessHandler)
+            );
+        }
 
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(apiKeyAuthFilter, JwtAuthFilter.class);
