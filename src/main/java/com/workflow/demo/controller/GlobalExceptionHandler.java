@@ -40,8 +40,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorDto> handleGeneric(Exception ex) {
+
+        ex.printStackTrace(); // IMPORTANT
+
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiErrorDto("internal_error", "Internal server error", Map.of("type", ex.getClass().getSimpleName())));
+                .body(new ApiErrorDto(
+                        "internal_error",
+                        ex.getMessage(),
+                        Map.of("type", ex.getClass().getSimpleName())
+                ));
     }
 
     private HttpStatus mapStatus(String message) {
