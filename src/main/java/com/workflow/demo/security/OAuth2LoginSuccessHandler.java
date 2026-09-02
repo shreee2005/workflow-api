@@ -32,7 +32,7 @@ public class OAuth2LoginSuccessHandler
     public OAuth2LoginSuccessHandler(
             UserRepository userRepository,
             JwtUtil jwtUtil,
-            @Value("${frontend.url:http://localhost:5173}") String frontendUrl
+            @Value("${frontend.url:http://localhost:3001}") String frontendUrl
     ) {
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;

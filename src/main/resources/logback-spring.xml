@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration scan="true">
 
-    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="workflow-api"/>
+    <springProperty
+            scope="context"
+            name="APP_NAME"
+            source="spring.application.name"
+            defaultValue="workflow-api"/>
 
     <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
@@ -9,7 +13,6 @@
                 <timestamp>
                     <fieldName>timestamp</fieldName>
                 </timestamp>
-                <version/>
                 <logLevel>
                     <fieldName>level</fieldName>
                 </logLevel>
@@ -23,9 +26,6 @@
                     <fieldName>message</fieldName>
                 </message>
                 <mdc/>
-                <context>
-                    <fieldName>context</fieldName>
-                </context>
                 <stackTrace>
                     <fieldName>stack_trace</fieldName>
                 </stackTrace>
@@ -36,8 +36,28 @@
         </encoder>
     </appender>
 
-    <root level="INFO">
-        <appender-ref ref="JSON_CONSOLE"/>
-    </root>
+    <!-- Do not send logs during Maven tests. -->
+    <springProfile name="!test">
+        <appender name="HTTP" class="com.workflow.demo.config.HttpAppender">
+            <!-- Use localhost when this application runs directly on Windows. -->
+            <!-- Use host.docker.internal when this application itself runs in Docker. -->
+            <url>http://host.docker.internal:8086/api/v1/logs</url>
+            <serviceId>${APP_NAME}</serviceId>
+            <apiKey>4f025ff6-fdd5-4522-9cd8-e947515c5390</apiKey>
+            <format>JSON</format>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="JSON_CONSOLE"/>
+            <appender-ref ref="HTTP"/>
+        </root>
+    </springProfile>
+
+    <!-- Active because your tests run with the test profile. -->
+    <springProfile name="test">
+        <root level="INFO">
+            <appender-ref ref="JSON_CONSOLE"/>
+        </root>
+    </springProfile>
 
 </configuration>

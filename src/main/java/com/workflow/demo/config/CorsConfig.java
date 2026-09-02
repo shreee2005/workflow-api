@@ -13,7 +13,7 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173,https://workflow-ui-eight.vercel.app}")
+    @Value("${app.cors.allowed-origins:http://localhost:3001,http://localhost:5173,https://workflow-ui-eight.vercel.app}")
     private String allowedOrigins;
 
     @Bean
@@ -29,7 +29,6 @@ public class CorsConfig {
         config.setMaxAge(3600L); // cache preflight
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // apply CORS to all endpoints, including /api/**
         source.registerCorsConfiguration("/**", config);
 
         return new CorsFilter(source);
