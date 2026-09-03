@@ -19,7 +19,8 @@ target/
 *.iml
 *.ipr
  src/main/java/com/workflow/demo/config/HttpAppender.java
-
+src/docs/Progress1.txt
+src/docs/**
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
@@ -31,7 +32,7 @@ build/
 !**/src/test/**/build/
 src/main/resources/application.properties
 src/main/resources/db
-src/docs/Progress1.txt
+
 ### VS Code ###
 .vscode/
 /target/

@@ -176,7 +176,7 @@ public class MonitoringService {
     private boolean checkRabbitMQHealth() {
         try {
             if (rabbitAdmin != null) {
-                rabbitAdmin.getQueueInfo("workflow.queue");
+                rabbitAdmin.getQueueInfo("workflow.tasks");
                 return true;
             }
             return false;
