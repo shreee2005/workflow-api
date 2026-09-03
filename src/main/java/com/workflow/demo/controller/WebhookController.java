@@ -2,6 +2,7 @@ package com.workflow.demo.controller;
 
 import com.workflow.demo.service.WebhookService;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import org.springframework.http.ResponseEntity;
@@ -45,7 +46,8 @@ public class WebhookController {
 
         } catch (RuntimeException ex) {
             span.recordException(ex);
-            span.setAttribute("error", true);
+            span.setStatus(StatusCode.ERROR, "webhook_rejected");
+            span.setAttribute("error.category", errorCategory(ex));
 
             if ("WORKFLOW_NOT_FOUND".equals(ex.getMessage())) {
                 return ResponseEntity
@@ -63,5 +65,15 @@ public class WebhookController {
         } finally {
             span.end();
         }
+    }
+
+    private String errorCategory(Exception ex) {
+        if ("WORKFLOW_NOT_FOUND".equals(ex.getMessage())) {
+            return "workflow_not_found";
+        }
+        if ("WORKFLOW_NOT_ACTIVE".equals(ex.getMessage())) {
+            return "workflow_not_active";
+        }
+        return "validation_or_processing";
     }
 }
