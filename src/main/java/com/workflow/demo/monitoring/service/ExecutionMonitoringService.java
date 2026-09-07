@@ -73,15 +73,10 @@ public class ExecutionMonitoringService {
             }
             
             dto.setRetries(run.getAttempt());
-            dto.setQueue("RabbitMQ");
-            dto.setWorker("worker-" + (run.getId().hashCode() % 3 + 1)); // Simple worker assignment
+            dto.setQueue("workflow.tasks");
+            dto.setWorker("workflow-worker");
             
             liveExecutions.add(dto);
-        }
-        
-        // If no running executions, return sample data for demonstration
-        if (liveExecutions.isEmpty()) {
-            liveExecutions.add(createSampleLiveExecution());
         }
         
         return liveExecutions;
@@ -141,16 +136,4 @@ public class ExecutionMonitoringService {
         return dto;
     }
 
-    private LiveExecutionDto createSampleLiveExecution() {
-        LiveExecutionDto dto = new LiveExecutionDto();
-        dto.setRunId(UUID.randomUUID());
-        dto.setWorkflow("Invoice Processing");
-        dto.setCurrentStep("Approval");
-        dto.setElapsedTime(18);
-        dto.setRetries(0);
-        dto.setQueue("RabbitMQ");
-        dto.setWorker("worker-2");
-        dto.setStatus("RUNNING");
-        return dto;
-    }
 }

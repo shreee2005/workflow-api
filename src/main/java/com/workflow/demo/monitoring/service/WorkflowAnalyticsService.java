@@ -7,10 +7,15 @@ import com.workflow.demo.repository.WorkflowRepository;
 import com.workflow.demo.repository.WorkflowRunRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.time.format.TextStyle;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class WorkflowAnalyticsService {
@@ -26,105 +31,96 @@ public class WorkflowAnalyticsService {
 
     public WorkflowAnalyticsDto getWorkflowAnalytics() {
         WorkflowAnalyticsDto dto = new WorkflowAnalyticsDto();
-        
-        // Total Workflows
-        int totalWorkflows = (int) workflowRepository.count();
-        dto.setTotalWorkflows(totalWorkflows);
-        
-        // Most Used Workflow
+
+        dto.setTotalWorkflows((int) workflowRepository.count());
         dto.setMostUsedWorkflow(findMostUsedWorkflow());
-        
-        // Most Active Team (placeholder - implement team analytics)
-        dto.setMostActiveTeam("Development");
-        
-        // Average Runtime
+        dto.setMostActiveTeam("N/A");
         dto.setAverageRuntime(calculateAverageRuntime());
-        
-        // Longest Workflow
         dto.setLongestWorkflow(findLongestWorkflow());
-        
-        // Success Rate
         dto.setSuccessRate(calculateSuccessRate());
-        
         return dto;
     }
 
     public List<DailyExecutionDto> getDailyExecutions() {
         List<DailyExecutionDto> dailyExecutions = new ArrayList<>();
-        
-        // Get last 7 days of executions
-        OffsetDateTime now = OffsetDateTime.now();
-        Map<String, Long> dailyCounts = new LinkedHashMap<>();
-        
+        Map<LocalDate, Long> countsByDate = new LinkedHashMap<>();
+
+        LocalDate today = LocalDate.now();
         for (int i = 6; i >= 0; i--) {
-            OffsetDateTime dayStart = now.minusDays(i).withHour(0).withMinute(0).withSecond(0).withNano(0);
-            OffsetDateTime dayEnd = dayStart.plusDays(1);
-            
-            String dayName = dayStart.getDayOfWeek().toString().substring(0, 3);
-            long count = workflowRunRepository.count();
-            
-            // In a real implementation, you'd add a custom query to filter by date range
-            // For now, we'll use placeholder data
-            dailyCounts.put(dayName, count);
+            LocalDate date = today.minusDays(i);
+            countsByDate.put(date, 0L);
         }
-        
-        // Convert to DTOs with some sample data for demonstration
-        dailyExecutions.add(new DailyExecutionDto("Mon", 210));
-        dailyExecutions.add(new DailyExecutionDto("Tue", 185));
-        dailyExecutions.add(new DailyExecutionDto("Wed", 260));
-        dailyExecutions.add(new DailyExecutionDto("Thu", 300));
-        dailyExecutions.add(new DailyExecutionDto("Fri", 245));
-        dailyExecutions.add(new DailyExecutionDto("Sat", 120));
-        dailyExecutions.add(new DailyExecutionDto("Sun", 95));
-        
+
+        for (WorkflowRun run : workflowRunRepository.findAll()) {
+            if (run.getStartedAt() == null) {
+                continue;
+            }
+            LocalDate startedDate = run.getStartedAt().toLocalDate();
+            if (countsByDate.containsKey(startedDate)) {
+                countsByDate.put(startedDate, countsByDate.get(startedDate) + 1L);
+            }
+        }
+
+        for (Map.Entry<LocalDate, Long> entry : countsByDate.entrySet()) {
+            String dayName = entry.getKey().getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
+            dailyExecutions.add(new DailyExecutionDto(dayName, entry.getValue().intValue()));
+        }
+
         return dailyExecutions;
     }
 
     public List<WorkflowExecutionStatsDto> getWorkflowExecutionStats() {
         List<WorkflowExecutionStatsDto> stats = new ArrayList<>();
-        
-        // Get all workflows and count their executions
         List<Workflow> workflows = workflowRepository.findAll();
-        int totalExecutions = workflows.size() > 0 ? 500 : 0; // Placeholder total
-        
-        // Sample data for demonstration
-        stats.add(new WorkflowExecutionStatsDto("Invoice Processing", 175, 35.0));
-        stats.add(new WorkflowExecutionStatsDto("Email Notification", 140, 28.0));
-        stats.add(new WorkflowExecutionStatsDto("HR Onboarding", 85, 17.0));
-        stats.add(new WorkflowExecutionStatsDto("Payment Processing", 100, 20.0));
-        
+
+        for (Workflow workflow : workflows) {
+            List<WorkflowRun> runs = workflowRunRepository.findAll().stream()
+                    .filter(run -> run.getWorkflowId().equals(workflow.getId()))
+                    .toList();
+            long total = runs.size();
+            long successCount = runs.stream()
+                    .filter(run -> run.getStatus() == WorkflowRun.Status.SUCCEEDED)
+                    .count();
+            double successRate = total > 0 ? (successCount * 100.0) / total : 0.0;
+            stats.add(new WorkflowExecutionStatsDto(workflow.getName(), (int) total, successRate));
+        }
+
         return stats;
     }
 
     public WorkflowStatsDto getWorkflowStats() {
         WorkflowStatsDto dto = new WorkflowStatsDto();
-        
-        // Count running workflows
-        long runningCount = workflowRunRepository.count();
-        dto.setRunning((int) Math.min(runningCount, 18)); // Placeholder
-        
-        // Count queued workflows
-        dto.setQueued(42); // Placeholder
-        
-        // Count completed today
+        List<WorkflowRun> runs = workflowRunRepository.findAll();
+
+        dto.setRunning((int) runs.stream()
+                .filter(run -> run.getStatus() == WorkflowRun.Status.RUNNING || run.getStatus() == WorkflowRun.Status.RETRYING || run.getStatus() == WorkflowRun.Status.WAITING)
+                .count());
+        dto.setQueued((int) runs.stream()
+                .filter(run -> run.getStatus() == WorkflowRun.Status.QUEUED)
+                .count());
         OffsetDateTime todayStart = OffsetDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
-        dto.setCompletedToday(521); // Placeholder
-        
-        // Count failed
-        dto.setFailed(9); // Placeholder
-        
+        dto.setCompletedToday((int) runs.stream()
+                .filter(run -> run.getStartedAt() != null && !run.getStartedAt().isBefore(todayStart))
+                .count());
+        dto.setFailed((int) runs.stream()
+                .filter(run -> run.getStatus() == WorkflowRun.Status.FAILED)
+                .count());
         return dto;
     }
 
     private String findMostUsedWorkflow() {
-        List<Workflow> workflows = workflowRepository.findAll();
-        if (workflows.isEmpty()) {
-            return "No workflows";
+        Map<String, Long> countsByWorkflow = new LinkedHashMap<>();
+        for (WorkflowRun run : workflowRunRepository.findAll()) {
+            Workflow workflow = workflowRepository.findById(run.getWorkflowId()).orElse(null);
+            if (workflow == null || workflow.getName() == null) {
+                continue;
+            }
+            countsByWorkflow.put(workflow.getName(), countsByWorkflow.getOrDefault(workflow.getName(), 0L) + 1L);
         }
-        
-        // In a real implementation, you'd query WorkflowRun to count executions per workflow
-        // For now, return the first workflow name or a placeholder
-        return workflows.get(0).getName() != null ? workflows.get(0).getName() : "Invoice Processing";
+        return countsByWorkflow.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse("No workflows");
     }
 
     private double calculateAverageRuntime() {
@@ -132,24 +128,39 @@ public class WorkflowAnalyticsService {
         if (runs.isEmpty()) {
             return 0.0;
         }
-        
-        // Calculate average runtime in seconds
-        long totalDuration = 0;
+
+        long totalDurationSeconds = 0;
         int count = 0;
-        
         for (WorkflowRun run : runs) {
             if (run.getStartedAt() != null && run.getFinishedAt() != null) {
-                totalDuration += run.getFinishedAt().toEpochSecond() - run.getStartedAt().toEpochSecond();
+                totalDurationSeconds += run.getFinishedAt().toEpochSecond() - run.getStartedAt().toEpochSecond();
                 count++;
             }
         }
-        
-        return count > 0 ? (double) totalDuration / count : 3.2; // Placeholder
+
+        return count > 0 ? (double) totalDurationSeconds / count : 0.0;
     }
 
     private String findLongestWorkflow() {
-        // In a real implementation, you'd query to find the workflow with longest average execution time
-        return "Invoice Approval"; // Placeholder
+        String longestWorkflow = "No workflow data";
+        double longestRuntime = -1;
+
+        for (Workflow workflow : workflowRepository.findAll()) {
+            List<WorkflowRun> runs = workflowRunRepository.findAll().stream()
+                    .filter(run -> run.getWorkflowId().equals(workflow.getId()))
+                    .toList();
+            double averageRuntime = runs.stream()
+                    .filter(run -> run.getStartedAt() != null && run.getFinishedAt() != null)
+                    .mapToLong(run -> run.getFinishedAt().toEpochSecond() - run.getStartedAt().toEpochSecond())
+                    .average()
+                    .orElse(0.0);
+            if (averageRuntime > longestRuntime) {
+                longestRuntime = averageRuntime;
+                longestWorkflow = workflow.getName();
+            }
+        }
+
+        return longestWorkflow;
     }
 
     private double calculateSuccessRate() {
@@ -157,11 +168,11 @@ public class WorkflowAnalyticsService {
         if (runs.isEmpty()) {
             return 100.0;
         }
-        
+
         long successCount = runs.stream()
                 .filter(run -> run.getStatus() == WorkflowRun.Status.SUCCEEDED)
                 .count();
-        
+
         return ((double) successCount / runs.size()) * 100;
     }
 }

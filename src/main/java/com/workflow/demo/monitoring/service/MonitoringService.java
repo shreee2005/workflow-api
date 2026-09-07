@@ -1,167 +1,137 @@
 package com.workflow.demo.monitoring.service;
 
+import com.workflow.demo.entity.WorkflowRun;
 import com.workflow.demo.monitoring.dto.*;
+import com.workflow.demo.repository.WorkflowRepository;
+import com.workflow.demo.repository.WorkflowRunRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.actuate.health.Health;
-import org.springframework.boot.actuate.health.Status;
-import org.springframework.boot.actuate.health.HealthEndpoint;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import javax.sql.DataSource;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.ThreadMXBean;
 import java.sql.Connection;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class MonitoringService {
 
     private final MeterRegistry meterRegistry;
-    private final HealthEndpoint healthEndpoint;
     private final DataSource dataSource;
     private final RabbitAdmin rabbitAdmin;
+    private final WorkflowRunRepository workflowRunRepository;
+    private final WorkflowRepository workflowRepository;
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${server.port:8080}")
+    private int serverPort;
+
+    @Value("${workflow.worker.health-url:http://workflow-worker:8080/actuator/health}")
+    private String workerHealthUrl;
 
     public MonitoringService(MeterRegistry meterRegistry,
-                           HealthEndpoint healthEndpoint,
                            DataSource dataSource,
-                           ObjectProvider<RabbitAdmin> rabbitAdminProvider) {
+                           ObjectProvider<RabbitAdmin> rabbitAdminProvider,
+                           WorkflowRunRepository workflowRunRepository,
+                           WorkflowRepository workflowRepository) {
         this.meterRegistry = meterRegistry;
-        this.healthEndpoint = healthEndpoint;
         this.dataSource = dataSource;
         this.rabbitAdmin = rabbitAdminProvider.getIfAvailable();
+        this.workflowRunRepository = workflowRunRepository;
+        this.workflowRepository = workflowRepository;
     }
 
     public HealthStatusDto getHealthStatus() {
         HealthStatusDto dto = new HealthStatusDto();
-        
-        // API Health
-        dto.setApi("UP");
-        
-        // Database Health
+        dto.setApi(checkAppHealth() ? "UP" : "DOWN");
         dto.setDatabase(checkDatabaseHealth() ? "UP" : "DOWN");
-        
-        // RabbitMQ Health
         dto.setRabbitmq(checkRabbitMQHealth() ? "UP" : "DOWN");
-        
-        // Redis Health (placeholder - implement if Redis is used)
         dto.setRedis("UP");
-        
-        // Worker Health (placeholder - implement worker health check)
-        dto.setWorker("UP");
-        
+        dto.setWorker(checkWorkerHealth() ? "UP" : "DOWN");
         return dto;
     }
 
     public SystemMetricsDto getSystemMetrics() {
         SystemMetricsDto dto = new SystemMetricsDto();
-        
-        // CPU Usage
+
         try {
-            double cpuUsage = getCpuUsage();
-            dto.setCpu(Math.max(0, cpuUsage));
+            dto.setCpu(Math.max(0, getCpuUsage()));
         } catch (Exception e) {
             dto.setCpu(0);
         }
-        
-        // Memory Usage in MB
+
         try {
-            long memoryUsage = getMemoryUsage();
-            dto.setMemory(memoryUsage);
+            dto.setMemory(getMemoryUsage());
         } catch (Exception e) {
             dto.setMemory(0);
         }
-        
-        // JVM Heap Usage percentage
+
         try {
-            double heapUsage = getHeapUsage();
-            dto.setHeapUsage(Math.max(0, Math.min(100, heapUsage)));
+            dto.setHeapUsage(Math.max(0, Math.min(100, getHeapUsage())));
         } catch (Exception e) {
             dto.setHeapUsage(0);
         }
-        
-        // Active Threads
+
         try {
-            int activeThreads = getActiveThreads();
-            dto.setActiveThreads(activeThreads);
+            dto.setActiveThreads(getActiveThreads());
         } catch (Exception e) {
             dto.setActiveThreads(0);
         }
-        
-        // Request Count per minute (from Micrometer)
+
         try {
-            double requestsPerMinute = meterRegistry.counter("http.server.requests").count();
-            dto.setRequestsPerMinute((int) requestsPerMinute);
+            dto.setRequestsPerMinute((int) Math.max(0, getTotalHttpRequests()));
         } catch (Exception e) {
             dto.setRequestsPerMinute(0);
         }
-        
-        // Average Response Time
+
         try {
-            double avgResponseTime = meterRegistry.timer("http.server.requests").mean(TimeUnit.MILLISECONDS);
-            dto.setAvgResponseTime((long) avgResponseTime);
+            dto.setAvgResponseTime((long) getAverageResponseTimeMs());
         } catch (Exception e) {
             dto.setAvgResponseTime(0);
         }
-        
+
         return dto;
     }
 
     public TrafficMetricsDto getTrafficMetrics() {
         TrafficMetricsDto dto = new TrafficMetricsDto();
-        
-        // Requests per minute
-        try {
-            double requestsPerMinute = meterRegistry.counter("http.server.requests").count();
-            dto.setRequestsPerMinute((int) requestsPerMinute);
-        } catch (Exception e) {
-            dto.setRequestsPerMinute(0);
-        }
-        
-        // Success Rate (calculate from HTTP status metrics)
-        try {
-            double successCount = meterRegistry.counter("http.server.requests", "status", "200").count() +
-                                 meterRegistry.counter("http.server.requests", "status", "201").count();
-            double totalCount = meterRegistry.counter("http.server.requests").count();
-            double successRate = totalCount > 0 ? (successCount / totalCount) * 100 : 100;
-            dto.setSuccessRate(Math.max(0, Math.min(100, successRate)));
-            dto.setErrorRate(Math.max(0, Math.min(100, 100 - successRate)));
-        } catch (Exception e) {
-            dto.setSuccessRate(100);
-            dto.setErrorRate(0);
-        }
-        
-        // Average Latency
-        try {
-            double avgLatency = meterRegistry.timer("http.server.requests").mean(TimeUnit.MILLISECONDS);
-            dto.setAvgLatency((long) avgLatency);
-        } catch (Exception e) {
-            dto.setAvgLatency(0);
-        }
-        
+
+        double totalRequests = getTotalHttpRequests();
+        double successRequests = getSuccessHttpRequests();
+        dto.setRequestsPerMinute((int) Math.max(0, totalRequests));
+        dto.setSuccessRate(totalRequests > 0 ? Math.max(0, Math.min(100, (successRequests / totalRequests) * 100)) : 100);
+        dto.setErrorRate(totalRequests > 0 ? Math.max(0, Math.min(100, 100 - ((successRequests / totalRequests) * 100))) : 0);
+        dto.setAvgLatency((long) getAverageResponseTimeMs());
         return dto;
     }
 
     public WorkerStatusDto getWorkerStatus() {
         WorkerStatusDto dto = new WorkerStatusDto();
-        
-        // Placeholder values - implement actual worker monitoring
-        dto.setRunningWorkers(3);
-        dto.setHealthyWorkers(3);
-        dto.setFailedWorkers(0);
-        
+        long running = workflowRunRepository.findAll().stream()
+                .filter(run -> run.getStatus() == WorkflowRun.Status.RUNNING
+                        || run.getStatus() == WorkflowRun.Status.RETRYING
+                        || run.getStatus() == WorkflowRun.Status.WAITING)
+                .count();
+        long failed = workflowRunRepository.findAll().stream()
+                .filter(run -> run.getStatus() == WorkflowRun.Status.FAILED)
+                .count();
+
+        dto.setRunningWorkers((int) running);
+        dto.setHealthyWorkers(checkWorkerHealth() ? 1 : 0);
+        dto.setFailedWorkers((int) failed);
         return dto;
     }
 
     public PrometheusMetricsDto getPrometheusMetrics() {
-        // This would typically proxy to the actual Prometheus endpoint
-        // For now, return a placeholder
         PrometheusMetricsDto dto = new PrometheusMetricsDto();
-        dto.setMetrics("# Prometheus metrics would be scraped from /actuator/prometheus");
+        dto.setMetrics(fetchPrometheusMetrics());
         return dto;
     }
 
@@ -185,9 +155,78 @@ public class MonitoringService {
         }
     }
 
+    private boolean checkAppHealth() {
+        try {
+            String response = restTemplate.getForObject("http://localhost:" + serverPort + "/actuator/health", String.class);
+            return response != null && response.contains("\"status\":\"UP\"");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean checkWorkerHealth() {
+        try {
+            String response = restTemplate.getForObject(workerHealthUrl, String.class);
+            return response != null && response.contains("\"status\":\"UP\"");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String fetchPrometheusMetrics() {
+        try {
+            return restTemplate.getForObject("http://localhost:" + serverPort + "/actuator/prometheus", String.class);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private double getTotalHttpRequests() {
+        String metrics = fetchPrometheusMetrics();
+        return extractPrometheusCounter(metrics, "http_server_requests_seconds_count");
+    }
+
+    private double getSuccessHttpRequests() {
+        String metrics = fetchPrometheusMetrics();
+        double success = 0;
+        Matcher matcher = Pattern.compile("http_server_requests_seconds_count\\{[^\\n]*status=\\\"(200|201|202|204|206)\\\"[^\\n]*\\}\\s+([0-9eE.+-]+)")
+                .matcher(metrics);
+        while (matcher.find()) {
+            success += Double.parseDouble(matcher.group(2));
+        }
+        return success;
+    }
+
+    private double getAverageResponseTimeMs() {
+        String metrics = fetchPrometheusMetrics();
+        double totalSeconds = extractPrometheusCounter(metrics, "http_server_requests_seconds_sum");
+        double totalRequests = extractPrometheusCounter(metrics, "http_server_requests_seconds_count");
+        return totalRequests > 0 ? (totalSeconds / totalRequests) * 1000 : 0;
+    }
+
+    private double extractPrometheusCounter(String metrics, String metricName) {
+        if (metrics == null || metrics.isBlank()) {
+            return 0;
+        }
+        double total = 0;
+        Matcher matcher = Pattern.compile(Pattern.quote(metricName) + "\\{[^\\n]*\\}\\s+([0-9eE.+-]+)")
+                .matcher(metrics);
+        while (matcher.find()) {
+            total += Double.parseDouble(matcher.group(1));
+        }
+
+        Matcher scalarMatcher = Pattern.compile(Pattern.quote(metricName) + "\\s+([0-9eE.+-]+)")
+                .matcher(metrics);
+        while (scalarMatcher.find()) {
+            total += Double.parseDouble(scalarMatcher.group(1));
+        }
+
+        return total;
+    }
+
     private double getCpuUsage() {
         try {
-            com.sun.management.OperatingSystemMXBean osBean = 
+            com.sun.management.OperatingSystemMXBean osBean =
                 (com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
             double cpuLoad = osBean.getSystemCpuLoad();
             return cpuLoad >= 0 ? cpuLoad * 100 : 0;
@@ -199,7 +238,7 @@ public class MonitoringService {
     private long getMemoryUsage() {
         MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
         long usedMemory = memoryBean.getHeapMemoryUsage().getUsed();
-        return usedMemory / (1024 * 1024); // Convert to MB
+        return usedMemory / (1024 * 1024);
     }
 
     private double getHeapUsage() {
