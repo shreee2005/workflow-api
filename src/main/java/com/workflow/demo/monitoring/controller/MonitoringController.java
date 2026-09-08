@@ -58,13 +58,13 @@ public class MonitoringController {
 
     @GetMapping("/traces")
     public TraceDto getTraces() {
-        // Placeholder for traces - implement with Zipkin integration
-        TraceDto dto = new TraceDto();
-        dto.setWorkflow("Sample Workflow");
-        dto.setDuration(1800);
-        dto.setTraceId("abcd123");
-        dto.setStatus("Success");
-        return dto;
+        List<RecentTraceDto> recentTraces = observabilityService.getRecentTraces();
+        if (recentTraces.isEmpty()) {
+            return new TraceDto();
+        }
+
+        RecentTraceDto latest = recentTraces.get(0);
+        return new TraceDto(latest.getWorkflow(), latest.getDuration(), latest.getTraceId(), latest.getStatus());
     }
 
     @GetMapping("/workers")

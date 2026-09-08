@@ -31,7 +31,7 @@ public class AlertService {
         // Check queue depth
         try {
             if (rabbitAdmin != null) {
-                var queueInfo = rabbitAdmin.getQueueInfo("workflow.queue");
+                var queueInfo = rabbitAdmin.getQueueInfo("workflow.tasks");
                 if (queueInfo != null && queueInfo.getMessageCount() > 100) {
                     alerts.add(new AlertDto(
                             "High Queue Length",
@@ -120,7 +120,7 @@ public class AlertService {
         // Check queue depth
         try {
             if (rabbitAdmin != null) {
-                var queueInfo = rabbitAdmin.getQueueInfo("workflow.queue");
+                var queueInfo = rabbitAdmin.getQueueInfo("workflow.tasks");
                 if (queueInfo != null && queueInfo.getMessageCount() > 50) {
                     recommendations.add(new RecommendationDto(
                             "Queue Depth",
