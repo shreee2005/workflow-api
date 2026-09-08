@@ -19,7 +19,8 @@ target/
 *.iml
 *.ipr
  src/main/java/com/workflow/demo/config/HttpAppender.java
-
+src/docs/Progress1.txt
+src/docs/**
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

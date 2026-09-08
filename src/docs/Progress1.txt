@@ -1,0 +1,419 @@
+## Phase 2 completed: trace quality and RabbitMQ behavior
+
+Phase 2 focused on making traces useful, safe, and consistent—not merely present.
+
+### 1. Explicit error status on API webhook spans
+
+Updated `WebhookController.java`.
+
+Previously, errors only added:
+
+```java
+span.recordException(ex);
+span.setAttribute("error", true);
+```
+
+Now failures are represented using OpenTelemetry status:
+
+```java
+span.recordException(ex);
+span.setStatus(StatusCode.ERROR, "webhook_rejected");
+span.setAttribute("error.category", errorCategory(ex));
+```
+
+Example categories:
+
+```text
+workflow_not_found
+workflow_not_active
+validation_or_processing
+```
+
+### Why this matters
+
+`recordException()` records the exception event, but does not always clearly mark the span as failed. Setting `StatusCode.ERROR` allows Zipkin, Grafana, and future tracing backends to identify failed operations reliably.
+
+Interview point:
+
+> Exception recording and span status are related but separate concepts. A production trace should normally record both.
+
+---
+
+## 2. Worker processing failures are now classified
+
+Updated `WorkflowTaskConsumer.java`.
+
+Worker failures now produce:
+
+```java
+currentSpan.recordException(ex);
+currentSpan.setStatus(StatusCode.ERROR, "workflow_processing_failed");
+currentSpan.setAttribute("error.category", errorCategory(ex));
+```
+
+The category is derived from the failure type:
+
+```text
+transient_transport
+downstream_client_error
+downstream_server_error
+validation
+processing
+unknown
+```
+
+Examples:
+
+| Error | Category |
+|---|---|
+| Connection refused | `transient_transport` |
+| HTTP 404 | `downstream_client_error` |
+| HTTP 503 | `downstream_server_error` |
+| Invalid workflow configuration | `validation` |
+| Unexpected exception | `processing` |
+
+### Why this matters
+
+This lets you distinguish:
+
+- errors that should be retried;
+- errors caused by invalid business configuration;
+- downstream service failures;
+- internal worker failures.
+
+That distinction is essential for alerting. You do not want an alert for every expected validation failure, but you do want alerts for repeated infrastructure failures.
+
+---
+
+## 3. Added the `workflow.retry` span
+
+Updated `RetryService.java`.
+
+The retry operation now creates a span:
+
+```java
+@WithSpan("workflow.retry")
+public void handleFailure(
+        @SpanAttribute("run.id") UUID runId,
+        @SpanAttribute("workflow.id") UUID workflowId,
+        @SpanAttribute("workflow.version.id") UUID workflowVersionId,
+        Object payload,
+        Exception ex,
+        boolean retryable
+) {
+```
+
+It records safe retry metadata:
+
+```java
+Span.current().setAttribute("retry.scheduled", retryable);
+Span.current().setAttribute("retry.attempt", run.getAttempt());
+Span.current().setAttribute(
+        "error.category",
+        retryable ? "transient_or_server" : "non_retryable"
+);
+```
+
+For a dead-lettered message:
+
+```java
+Span.current().recordException(ex);
+Span.current().setStatus(
+        StatusCode.ERROR,
+        "workflow_dead_lettered"
+);
+```
+
+### Important design decision
+
+The retry span does **not** record:
+
+- workflow payload;
+- raw exception body;
+- credentials;
+- headers;
+- message content.
+
+Only identifiers and classification metadata are included.
+
+Interview explanation:
+
+> Trace attributes should answer “what happened?” and “where did it happen?” without copying sensitive business data into the observability backend.
+
+---
+
+## 4. Added stable `workflow.step` spans
+
+Updated `WorkflowExecutor.java`.
+
+Every workflow step now creates a dedicated span:
+
+```java
+Span stepSpan = TRACER
+        .spanBuilder("workflow.step")
+        .startSpan();
+
+stepSpan.setAttribute("run.id", runId.toString());
+stepSpan.setAttribute("workflow.id", workflowId.toString());
+stepSpan.setAttribute("step.index", stepIndex);
+```
+
+The actual step type is recorded after reading the workflow definition:
+
+```java
+stepSpan.setAttribute("step.type", stepType);
+```
+
+Failures are represented consistently:
+
+```java
+stepSpan.recordException(ex);
+stepSpan.setStatus(
+        StatusCode.ERROR,
+        "workflow_step_failed"
+);
+stepSpan.setAttribute(
+        "error.category",
+        "step_execution"
+);
+```
+
+### Why this matters
+
+Without a standard `workflow.step` span, traces depend heavily on individual executor names such as:
+
+```text
+step.log
+step.http
+step.email
+step.database
+```
+
+Now every step has a consistent span name, which makes queries and dashboards easier:
+
+```text
+workflow.step
+```
+
+You can still retain executor-specific spans as children.
+
+### Trace structure
+
+A typical trace now looks like:
+
+```text
+POST /hooks/{workflowId}
+└── webhook.receive
+    └── webhook.accept
+        └── queue.publish
+            └── workflow.tasks process
+                └── queue.consume
+                    └── workflow.execute
+                        └── workflow.step
+                            └── step.log
+```
+
+This is a strong interview demonstration because it shows:
+
+- HTTP server instrumentation;
+- custom application spans;
+- RabbitMQ producer instrumentation;
+- RabbitMQ consumer instrumentation;
+- workflow-level spans;
+- step-level spans.
+
+---
+
+## 5. Removed sensitive LOG step data from spans and logs
+
+Updated `LogStepExecutor.java`.
+
+Previously it added:
+
+```java
+currentSpan.setAttribute("log.message", message);
+```
+
+and generated output containing the entire payload:
+
+```java
+String logOutput =
+        "[LOG STEP] message=" + message +
+        " payload=" + payload;
+```
+
+This was unsafe because both `message` and `payload` may contain user data or secrets.
+
+Now the span only records safe metadata:
+
+```java
+currentSpan.setAttribute("step.type", "LOG");
+currentSpan.setAttribute("workflow.outcome", "log_step");
+```
+
+The output is generic:
+
+```java
+String logOutput = "[LOG STEP] message emitted";
+```
+
+### Why this matters
+
+Never put the following into traces:
+
+```text
+Authorization headers
+Passwords
+SMTP credentials
+Slack webhook URLs
+S3 credentials
+Raw workflow payloads
+SQL parameters
+Full error bodies
+```
+
+Tracing systems are often accessed by many engineers and retained for long periods. Treat trace attributes as production data.
+
+---
+
+## 6. RabbitMQ message schema was preserved
+
+No tracing fields were added to:
+
+- `API WorkflowJobMessage.java`
+- `Worker WorkflowJobMessage.java`
+
+The message continues to contain business data only:
+
+```java
+runId
+workflowId
+workflowVersionId
+payload
+attempt
+```
+
+Trace context remains transport metadata in RabbitMQ headers.
+
+### How propagation works
+
+The OpenTelemetry Java agent instruments RabbitMQ operations:
+
+```text
+API producer
+    ↓ injects traceparent into AMQP headers
+RabbitMQ
+    ↓ preserves headers
+Worker consumer
+    ↓ extracts traceparent
+Worker span continues same trace
+```
+
+Conceptually:
+
+```text
+traceparent:
+00-<trace-id>-<parent-span-id>-01
+```
+
+The worker does not need to manually parse or store this in `WorkflowJobMessage`.
+
+### Interview point
+
+> Business messages and observability metadata should remain separate. Trace context belongs in transport headers, not domain DTOs.
+
+This avoids:
+
+- schema pollution;
+- coupling business code to tracing;
+- breaking consumers;
+- storing trace IDs in the database unnecessarily.
+
+---
+
+## 7. Dependency and SDK ownership remains correct
+
+The worker continues to keep only the OpenTelemetry API and annotations:
+
+```xml
+<dependency>
+    <groupId>io.opentelemetry</groupId>
+    <artifactId>opentelemetry-api</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>io.opentelemetry.instrumentation</groupId>
+    <artifactId>opentelemetry-instrumentation-annotations</artifactId>
+</dependency>
+```
+
+The worker no longer owns:
+
+- `opentelemetry-sdk`;
+- Zipkin exporter;
+- SDK autoconfiguration;
+- semantic conventions dependency;
+- hand-built global SDK.
+
+The Java agent remains the only SDK owner.
+
+This is important because two SDK owners could cause:
+
+```text
+duplicate spans
+duplicate exporters
+conflicting global providers
+inconsistent resource metadata
+```
+
+Using:
+
+```java
+GlobalOpenTelemetry.getTracer("workflow-worker")
+```
+
+does not create a second SDK. It retrieves the API facade connected to the agent-owned SDK.
+
+---
+
+## 8. Validation completed
+
+Successful validations:
+
+- API clean package build;
+- worker clean package build;
+- worker test suite: **34 tests passed**;
+- Docker Compose configuration validation;
+- source audit confirming safe attributes and error statuses.
+
+The worker tests passed using:
+
+```text
+mvnw.cmd -B clean test
+```
+
+### Runtime note
+
+The new Docker image rebuild was attempted, but Docker’s Maven dependency download failed due to external Maven Central DNS/network errors:
+
+```text
+repo.maven.apache.org: Name or service not known
+```
+
+Therefore:
+
+- source changes are compiled and tested;
+- the currently running containers were not replaced with the newest Phase 2 image;
+- runtime verification of these newest changes should be repeated after Maven connectivity is restored.
+
+---
+
+# Interview-grade summary
+
+A concise way to explain this phase:
+
+> Phase 1 established telemetry transport using the OpenTelemetry Java agent, OTLP, Collector, and Zipkin. Phase 2 improved trace quality. I added explicit span error status, categorized failures, introduced stable retry and workflow-step spans, removed sensitive payload/message attributes, and kept trace context in RabbitMQ headers instead of modifying the business message schema. The Java agent remains the only SDK owner, while application code uses only the OpenTelemetry API.
+
+The next logical phase is **Phase 3: Prometheus metrics correctness and API/worker actuator exposure**.
+
+**Task completed:** Phase 2 implementation and teaching notes are complete. Changes cover explicit error statuses/categories, workflow.retry and workflow.step spans, sensitive-data redaction, RabbitMQ header-based propagation, SDK ownership, validation results, and the Docker rebuild network limitation.
